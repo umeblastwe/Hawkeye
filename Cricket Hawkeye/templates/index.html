@@ -3,94 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HawkEye LBW Testing Portal</title>
+    <title>HawkEye DRS Simulation Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-        }
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
+        body { background: linear-gradient(135deg, #090d16 0%, #111e3d 100%); }
+        .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .drs-badge { font-weight: bold; padding: 4px 12px; border-radius: 4px; text-transform: uppercase; font-size: 0.85rem; }
+        .hitting { background-color: #ef4444; color: white; }
+        .missing { background-color: #10b981; color: white; }
+        .umpires-call { background-color: #f59e0b; color: black; }
     </style>
 </head>
-<body class="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4">
+<body class="min-h-screen text-slate-100 p-6 flex flex-col items-center justify-center">
 
-    <div class="w-full max-w-2xl glass-panel rounded-2xl p-8 shadow-2xl">
-        <h1 class="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-blue-400 to-indigo-200 bg-clip-text text-transparent">
-            HawkEye LBW Analyzer <span class="text-xs font-semibold px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full">Testing Mode</span>
-        </h1>
-        <p class="text-slate-400 text-sm text-center mb-8">Upload cricket delivery footage to test tracking parameters.</p>
+    <div class="w-full max-w-6xl glass-panel rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center border-b border-slate-700/50 pb-4 mb-6">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                HawkEye Intelligent DRS System <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded ml-2">v1.0-Beta</span>
+            </h1>
+            <div class="text-sm font-mono text-slate-400">Match Centre / Review Simulation</div>
+        </div>
 
-        <form id="uploadForm" class="space-y-6">
-            <!-- Video Upload -->
-            <div class="border-2 border-dashed border-slate-500/50 rounded-xl p-6 text-center hover:border-blue-400 transition cursor-pointer relative">
-                <input type="file" id="videoInput" name="video" accept="video/*" class="absolute inset-0 opacity-0 cursor-pointer" required>
-                <div class="space-y-2">
-                    <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                        <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20L28 8z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <p class="text-sm font-medium" id="fileName">Select or Drop Video File</p>
-                    <p class="text-xs text-slate-500">MP4, AVI, MOV up to 16MB</p>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 space-y-4">
+                <div class="relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-800 flex items-center justify-center">
+                    <video id="mainVideoPlayer" class="w-full h-full object-contain hidden" controls></video>
+                    <div id="videoPlaceholder" class="text-center p-8">
+                        <svg class="mx-auto h-12 w-12 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        <p class="text-slate-400 text-sm">No video active. Upload footage from the configuration panel.</p>
+                    </div>
+
+                    <div id="verdictOverlay" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl hidden animate-bounce">
+                        Decision Pending
+                    </div>
+                </div>
+
+                <form id="hawkeyeForm" class="glass-panel rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Select Footage</label>
+                        <input type="file" name="video" accept="video/*" class="w-full text-xs text-slate-300 bg-slate-900/50 rounded border border-slate-700 p-1.5 focus:outline-none" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Batsman Stance</label>
+                            <select name="batsman_hand" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-2 text-slate-200">
+                                <option value="Right">Right Hand (RHB)</option>
+                                <option value="Left">Left Hand (LHB)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">On-Field Call</label>
+                            <select name="umpires_call" id="formUmpiresCall" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-2 text-slate-200">
+                                <option value="Out">Out</option>
+                                <option value="Not Out">Not Out</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 grid grid-cols-3 gap-2 bg-slate-950/40 p-2 rounded border border-slate-800">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Ball Pitching</label>
+                            <select name="pitching" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
+                                <option value="In Line">In Line</option>
+                                <option value="Outside Off">Outside Off</option>
+                                <option value="Outside Leg">Outside Leg</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Ball Impact</label>
+                            <select name="impact" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
+                                <option value="In Line">In Line</option>
+                                <option value="Outside">Outside</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Stumps Hitting</label>
+                            <select name="wickets" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
+                                <option value="Hitting">Hitting</option>
+                                <option value="Missing">Missing</option>
+                                <option value="Umpire's Call">Umpire's Call</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="md:col-span-2 w-full bg-blue-600 hover:bg-blue-500 font-bold py-2.5 rounded text-sm transition">
+                        Analyze & Track Trajectory
+                    </button>
+                </form>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 h-full flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold uppercase tracking-widest border-b border-slate-800 pb-2 mb-4 text-slate-400">HawkEye Telemetry</h2>
+                        
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
+                                <span class="text-xs font-mono tracking-wider text-slate-400">PITCHING</span>
+                                <span id="lblPitching" class="text-xs font-black uppercase text-slate-500">—</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
+                                <span class="text-xs font-mono tracking-wider text-slate-400">IMPACT</span>
+                                <span id="lblImpact" class="text-xs font-black uppercase text-slate-500">—</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
+                                <span class="text-xs font-mono tracking-wider text-slate-400">WICKETS</span>
+                                <span id="lblWickets" class="text-xs font-black uppercase text-slate-500">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-800">
+                        <div class="text-[10px] font-bold text-center text-slate-500 uppercase tracking-widest mb-1">Final Decision Matrix</div>
+                        <div id="finalDecisionBox" class="w-full bg-slate-950 rounded-lg py-6 text-center text-xl font-black border border-slate-800 text-slate-600">
+                            AWAITING TELEMETRY
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Settings Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Batsman Hand -->
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">Batsman Stance</label>
-                    <select name="batsman_hand" class="w-full bg-slate-900/60 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                        <option value="Right">Right-Hand Batsman (RHB)</option>
-                        <option value="Left">Left-Hand Batsman (LHB)</option>
-                    </select>
-                </div>
-
-                <!-- Umpire's Call -->
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">On-Field Umpire Decision</label>
-                    <select name="umpires_call" class="w-full bg-slate-900/60 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                        <option value="Out">Out</option>
-                        <option value="Not Out">Not Out</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Submit Button -->
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold p-3 rounded-lg transition shadow-lg shadow-blue-600/30">
-                Run Hawkeye Simulation
-            </button>
-        </form>
-
-        <!-- Result Section (Hidden by default) -->
-        <div id="resultBox" class="mt-8 p-4 bg-slate-900/40 border border-slate-700/50 rounded-xl hidden">
-            <h3 class="text-lg font-semibold text-blue-400 mb-2">Test Console Output:</h3>
-            <pre id="jsonResult" class="text-xs font-mono text-emerald-400 overflow-x-auto bg-black/30 p-3 rounded"></pre>
         </div>
     </div>
 
     <script>
-        // Show selected file name
-        const fileInput = document.getElementById('videoInput');
-        const fileNameDisplay = document.getElementById('fileName');
-        fileInput.addEventListener('change', (e) => {
-            if(e.target.files.length > 0) {
-                fileNameDisplay.textContent = e.target.files[0].name;
-            }
-        });
-
-        // Handle Form Submit via AJAX
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        document.getElementById('hawkeyeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const resultBox = document.getElementById('resultBox');
-            const jsonResult = document.getElementById('jsonResult');
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.textContent = "Processing Tracking Arrays...";
+            submitBtn.disabled = true;
 
-            jsonResult.textContent = "Processing telemetry and video frames...";
-            resultBox.classList.remove('hidden');
+            const formData = new FormData(e.target);
 
             try {
                 const response = await fetch('/analyze', {
@@ -98,11 +143,68 @@
                     body: formData
                 });
                 const data = await response.json();
-                jsonResult.textContent = JSON.stringify(data, null, 2);
+
+                if(data.success) {
+                    // 1. Show and update Video Player
+                    const videoPlayer = document.getElementById('mainVideoPlayer');
+                    const placeholder = document.getElementById('videoPlaceholder');
+                    
+                    videoPlayer.src = data.video_url;
+                    videoPlayer.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    videoPlayer.load();
+                    videoPlayer.play();
+
+                    // 2. Update Telemetry Dashboard Panel
+                    updateTelemetryLabel('lblPitching', data.telemetry.pitching);
+                    updateTelemetryLabel('lblImpact', data.telemetry.impact);
+                    updateTelemetryLabel('lblWickets', data.telemetry.wickets);
+
+                    // 3. Process International DRS Logic Rule Engine
+                    const finalDecision = data.telemetry.final_decision;
+                    const decisionBox = document.getElementById('finalDecisionBox');
+                    const overlay = document.getElementById('verdictOverlay');
+
+                    // Style setup
+                    decisionBox.textContent = finalDecision;
+                    overlay.textContent = finalDecision;
+                    overlay.classList.remove('hidden');
+
+                    if(finalDecision === "OUT") {
+                        // Red Brand Styling
+                        decisionBox.className = "w-full bg-red-600/20 text-red-500 border border-red-500 rounded-lg py-6 text-center text-3xl font-black tracking-wider";
+                        overlay.className = "absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl bg-red-600 text-white animate-bounce";
+                    } else {
+                        // Green Brand Styling
+                        decisionBox.className = "w-full bg-emerald-600/20 text-emerald-400 border border-emerald-500 rounded-lg py-6 text-center text-3xl font-black tracking-wider";
+                        overlay.className = "absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl bg-emerald-600 text-white animate-bounce";
+                    }
+
+                } else {
+                    alert("Error: " + data.error);
+                }
             } catch (error) {
-                jsonResult.textContent = "Error uploading data. Check file size or console.";
+                console.error(error);
+                alert("Something went wrong with the simulation.");
+            } finally {
+                submitBtn.textContent = "Analyze & Track Trajectory";
+                submitBtn.disabled = false;
             }
         });
+
+        function updateTelemetryLabel(id, value) {
+            const el = document.getElementById(id);
+            el.textContent = value;
+            
+            // Apply standard broadcasting dynamic colors
+            if (["In Line", "Hitting"].includes(value)) {
+                el.className = "text-xs font-black uppercase text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20";
+            } else if (["Outside Off", "Outside Leg", "Missing", "Outside"].includes(value)) {
+                el.className = "text-xs font-black uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20";
+            } else if (value === "Umpire's Call") {
+                el.className = "text-xs font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20";
+            }
+        }
     </script>
 </body>
 </html>
