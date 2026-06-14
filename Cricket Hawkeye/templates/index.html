@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HawkEye LBW Testing Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl glass-panel rounded-2xl p-8 shadow-2xl">
+        <h1 class="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-blue-400 to-indigo-200 bg-clip-text text-transparent">
+            HawkEye LBW Analyzer <span class="text-xs font-semibold px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full">Testing Mode</span>
+        </h1>
+        <p class="text-slate-400 text-sm text-center mb-8">Upload cricket delivery footage to test tracking parameters.</p>
+
+        <form id="uploadForm" class="space-y-6">
+            <!-- Video Upload -->
+            <div class="border-2 border-dashed border-slate-500/50 rounded-xl p-6 text-center hover:border-blue-400 transition cursor-pointer relative">
+                <input type="file" id="videoInput" name="video" accept="video/*" class="absolute inset-0 opacity-0 cursor-pointer" required>
+                <div class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20L28 8z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p class="text-sm font-medium" id="fileName">Select or Drop Video File</p>
+                    <p class="text-xs text-slate-500">MP4, AVI, MOV up to 16MB</p>
+                </div>
+            </div>
+
+            <!-- Settings Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Batsman Hand -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Batsman Stance</label>
+                    <select name="batsman_hand" class="w-full bg-slate-900/60 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-blue-500">
+                        <option value="Right">Right-Hand Batsman (RHB)</option>
+                        <option value="Left">Left-Hand Batsman (LHB)</option>
+                    </select>
+                </div>
+
+                <!-- Umpire's Call -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">On-Field Umpire Decision</label>
+                    <select name="umpires_call" class="w-full bg-slate-900/60 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-blue-500">
+                        <option value="Out">Out</option>
+                        <option value="Not Out">Not Out</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold p-3 rounded-lg transition shadow-lg shadow-blue-600/30">
+                Run Hawkeye Simulation
+            </button>
+        </form>
+
+        <!-- Result Section (Hidden by default) -->
+        <div id="resultBox" class="mt-8 p-4 bg-slate-900/40 border border-slate-700/50 rounded-xl hidden">
+            <h3 class="text-lg font-semibold text-blue-400 mb-2">Test Console Output:</h3>
+            <pre id="jsonResult" class="text-xs font-mono text-emerald-400 overflow-x-auto bg-black/30 p-3 rounded"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Show selected file name
+        const fileInput = document.getElementById('videoInput');
+        const fileNameDisplay = document.getElementById('fileName');
+        fileInput.addEventListener('change', (e) => {
+            if(e.target.files.length > 0) {
+                fileNameDisplay.textContent = e.target.files[0].name;
+            }
+        });
+
+        // Handle Form Submit via AJAX
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const resultBox = document.getElementById('resultBox');
+            const jsonResult = document.getElementById('jsonResult');
+
+            jsonResult.textContent = "Processing telemetry and video frames...";
+            resultBox.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                jsonResult.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                jsonResult.textContent = "Error uploading data. Check file size or console.";
+            }
+        });
+    </script>
+</body>
+</html>
