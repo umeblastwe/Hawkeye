@@ -3,207 +3,537 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HawkEye DRS Simulation Portal</title>
+    <title>HawkEye LBW Analyzer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: linear-gradient(135deg, #090d16 0%, #111e3d 100%); }
-        .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
-        .drs-badge { font-weight: bold; padding: 4px 12px; border-radius: 4px; text-transform: uppercase; font-size: 0.85rem; }
-        .hitting { background-color: #ef4444; color: white; }
-        .missing { background-color: #10b981; color: white; }
-        .umpires-call { background-color: #f59e0b; color: black; }
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #050d1a;
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+
+        .hawkeye-bg {
+            background: radial-gradient(ellipse at top, #0a1f44 0%, #050d1a 60%);
+            min-height: 100vh;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: linear-gradient(90deg, #0a1628 0%, #0f2044 50%, #0a1628 100%);
+            border-bottom: 2px solid #1e40af;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-text {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #60a5fa, #c7d2fe, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .drs-badge {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            padding: 4px 12px;
+            border-radius: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            background: rgba(14, 30, 70, 0.6);
+            border: 2px dashed #1e3a8a;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #3b82f6;
+            background: rgba(30, 64, 175, 0.15);
+        }
+
+        /* Panel cards */
+        .panel {
+            background: rgba(8, 18, 40, 0.8);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+            backdrop-filter: blur(8px);
+        }
+
+        /* Result rows — HawkEye style */
+        .verdict-row {
+            display: flex;
+            align-items: stretch;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .verdict-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: #e2e8f0;
+            background: #1a2f5e;
+            padding: 8px 16px;
+            width: 130px;
+            display: flex;
+            align-items: center;
+            border-right: 2px solid rgba(59,130,246,0.3);
+        }
+
+        .verdict-value {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 8px 16px;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .val-inline { background: #1a3a1a; color: #4ade80; }
+        .val-outside-off { background: #2d1a1a; color: #f87171; }
+        .val-outside-leg { background: #2d1a1a; color: #f87171; }
+        .val-hitting { background: #3a1a1a; color: #f87171; }
+        .val-missing { background: #1a3a1a; color: #4ade80; }
+        .val-umpires { background: #2a2a0a; color: #fbbf24; }
+
+        .final-banner {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-align: center;
+            padding: 14px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border: 2px solid;
+        }
+
+        .banner-out { background: rgba(220,20,20,0.3); color: #fca5a5; border-color: #dc2626; }
+        .banner-not-out { background: rgba(22,163,74,0.3); color: #86efac; border-color: #16a34a; }
+        .banner-umpires { background: rgba(217,119,6,0.3); color: #fcd34d; border-color: #d97706; }
+
+        /* Stance selector */
+        .stance-btn {
+            flex: 1;
+            padding: 12px 8px;
+            border: 2px solid rgba(59,130,246,0.3);
+            background: rgba(14, 30, 70, 0.4);
+            color: #94a3b8;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stance-btn.selected {
+            border-color: #3b82f6;
+            background: rgba(59,130,246,0.2);
+            color: #93c5fd;
+        }
+
+        .stance-btn:hover:not(.selected) {
+            border-color: rgba(59,130,246,0.5);
+            background: rgba(14, 30, 70, 0.6);
+            color: #cbd5e1;
+        }
+
+        /* Run button */
+        .run-btn {
+            background: linear-gradient(135deg, #1d4ed8, #2563eb);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            padding: 14px;
+            border-radius: 8px;
+            width: 100%;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .run-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(59,130,246,0.3);
+        }
+
+        .run-btn:disabled {
+            background: #1e293b;
+            color: #475569;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Loading animation */
+        .tracking-bar {
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #3b82f6, #60a5fa, transparent);
+            background-size: 200% 100%;
+            animation: scan 1.5s ease-in-out infinite;
+            border-radius: 2px;
+        }
+
+        @keyframes scan {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .pulse-dot {
+            width: 8px; height: 8px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: pulse 1s ease-in-out infinite;
+            display: inline-block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+        }
+
+        /* Video result */
+        #resultVideo {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid rgba(59,130,246,0.3);
+            max-height: 420px;
+            background: #000;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a1628; }
+        ::-webkit-scrollbar-thumb { background: #1e40af; border-radius: 3px; }
     </style>
 </head>
-<body class="min-h-screen text-slate-100 p-6 flex flex-col items-center justify-center">
+<body class="hawkeye-bg">
 
-    <div class="w-full max-w-6xl glass-panel rounded-2xl p-6 shadow-2xl">
-        <div class="flex justify-between items-center border-b border-slate-700/50 pb-4 mb-6">
-            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                HawkEye Intelligent DRS System <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded ml-2">v1.0-Beta</span>
-            </h1>
-            <div class="text-sm font-mono text-slate-400">Match Centre / Review Simulation</div>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="flex items-center gap-4">
+            <span class="logo-text">HAWKEYE</span>
+            <span class="text-slate-500 text-xs font-mono">LBW DRS SYSTEM</span>
         </div>
+        <div class="flex items-center gap-3">
+            <span class="text-slate-500 text-xs">ICC COMPLIANT</span>
+            <span class="drs-badge">DRS v2.1</span>
+        </div>
+    </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            <div class="lg:col-span-2 space-y-4">
-                <div class="relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-800 flex items-center justify-center">
-                    <video id="mainVideoPlayer" class="w-full h-full object-contain hidden" controls></video>
-                    <div id="videoPlaceholder" class="text-center p-8">
-                        <svg class="mx-auto h-12 w-12 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    <div class="max-w-6xl mx-auto p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- LEFT: Upload Panel -->
+            <div class="panel p-6 space-y-5">
+                <div>
+                    <h2 class="font-rajdhani text-lg font-semibold text-blue-300 tracking-widest uppercase mb-1"
+                        style="font-family:'Rajdhani',sans-serif; letter-spacing:2px;">
+                        Upload Delivery Footage
+                    </h2>
+                    <p class="text-slate-500 text-xs">Upload a cricket delivery video. The system will auto-detect ball trajectory and compute the LBW verdict.</p>
+                </div>
+
+                <!-- Video Upload -->
+                <div class="upload-zone p-8 text-center" id="dropZone">
+                    <input type="file" id="videoInput" accept="video/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                    <div id="uploadPlaceholder">
+                        <svg class="mx-auto mb-3 w-12 h-12 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
                         </svg>
-                        <p class="text-slate-400 text-sm">No video active. Upload footage from the configuration panel.</p>
+                        <p class="text-sm text-slate-300 font-medium">Drop delivery video here</p>
+                        <p class="text-xs text-slate-600 mt-1">MP4 · AVI · MOV · WEBM — up to 64MB</p>
                     </div>
-
-                    <div id="verdictOverlay" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl hidden animate-bounce">
-                        Decision Pending
+                    <div id="fileSelected" class="hidden">
+                        <svg class="mx-auto mb-2 w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <p class="text-sm text-blue-300 font-medium" id="fileName">—</p>
+                        <p class="text-xs text-slate-500 mt-1" id="fileSize">—</p>
                     </div>
                 </div>
 
-                <form id="hawkeyeForm" class="glass-panel rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Select Footage</label>
-                        <input type="file" name="video" accept="video/*" class="w-full text-xs text-slate-300 bg-slate-900/50 rounded border border-slate-700 p-1.5 focus:outline-none" required>
+                <!-- Batsman Stance -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Batsman Stance</label>
+                    <div class="flex gap-3">
+                        <button type="button" class="stance-btn selected" id="btnRHB" onclick="selectStance('Right')">
+                            <!-- RHB silhouette -->
+                            <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+                                <circle cx="18" cy="5" r="4" fill="currentColor"/>
+                                <line x1="18" y1="9" x2="18" y2="26" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="14" x2="8" y2="22" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="14" x2="30" y2="18" stroke="currentColor" stroke-width="2.5" stroke-dasharray="2,1"/>
+                                <line x1="18" y1="26" x2="10" y2="38" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="26" x2="26" y2="38" stroke="currentColor" stroke-width="2.5"/>
+                                <rect x="28" y="16" width="7" height="2" rx="1" fill="#3b82f6" opacity="0.6"/>
+                            </svg>
+                            RIGHT-HAND<br/><span style="font-size:0.7rem;opacity:0.7">RHB</span>
+                        </button>
+                        <button type="button" class="stance-btn" id="btnLHB" onclick="selectStance('Left')">
+                            <!-- LHB silhouette (mirrored) -->
+                            <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+                                <circle cx="18" cy="5" r="4" fill="currentColor"/>
+                                <line x1="18" y1="9" x2="18" y2="26" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="14" x2="28" y2="22" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="14" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-dasharray="2,1"/>
+                                <line x1="18" y1="26" x2="10" y2="38" stroke="currentColor" stroke-width="2.5"/>
+                                <line x1="18" y1="26" x2="26" y2="38" stroke="currentColor" stroke-width="2.5"/>
+                                <rect x="1" y="16" width="7" height="2" rx="1" fill="#3b82f6" opacity="0.6"/>
+                            </svg>
+                            LEFT-HAND<br/><span style="font-size:0.7rem;opacity:0.7">LHB</span>
+                        </button>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Batsman Stance</label>
-                            <select name="batsman_hand" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-2 text-slate-200">
-                                <option value="Right">Right Hand (RHB)</option>
-                                <option value="Left">Left Hand (LHB)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">On-Field Call</label>
-                            <select name="umpires_call" id="formUmpiresCall" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-2 text-slate-200">
-                                <option value="Out">Out</option>
-                                <option value="Not Out">Not Out</option>
-                            </select>
-                        </div>
-                    </div>
+                    <input type="hidden" id="batsmanHand" value="Right">
+                </div>
 
-                    <div class="md:col-span-2 grid grid-cols-3 gap-2 bg-slate-950/40 p-2 rounded border border-slate-800">
-                        <div>
-                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Ball Pitching</label>
-                            <select name="pitching" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
-                                <option value="In Line">In Line</option>
-                                <option value="Outside Off">Outside Off</option>
-                                <option value="Outside Leg">Outside Leg</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Ball Impact</label>
-                            <select name="impact" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
-                                <option value="In Line">In Line</option>
-                                <option value="Outside">Outside</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Stumps Hitting</label>
-                            <select name="wickets" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1 text-slate-200">
-                                <option value="Hitting">Hitting</option>
-                                <option value="Missing">Missing</option>
-                                <option value="Umpire's Call">Umpire's Call</option>
-                            </select>
-                        </div>
-                    </div>
+                <!-- Run Button -->
+                <button class="run-btn" id="runBtn" onclick="runAnalysis()" disabled>
+                    ▶ RUN HAWKEYE SIMULATION
+                </button>
 
-                    <button type="submit" id="submitBtn" class="md:col-span-2 w-full bg-blue-600 hover:bg-blue-500 font-bold py-2.5 rounded text-sm transition">
-                        Analyze & Track Trajectory
-                    </button>
-                </form>
-            </div>
-
-            <div class="space-y-4">
-                <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 h-full flex flex-col justify-between">
-                    <div>
-                        <h2 class="text-sm font-bold uppercase tracking-widest border-b border-slate-800 pb-2 mb-4 text-slate-400">HawkEye Telemetry</h2>
-                        
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
-                                <span class="text-xs font-mono tracking-wider text-slate-400">PITCHING</span>
-                                <span id="lblPitching" class="text-xs font-black uppercase text-slate-500">—</span>
-                            </div>
-                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
-                                <span class="text-xs font-mono tracking-wider text-slate-400">IMPACT</span>
-                                <span id="lblImpact" class="text-xs font-black uppercase text-slate-500">—</span>
-                            </div>
-                            <div class="flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800">
-                                <span class="text-xs font-mono tracking-wider text-slate-400">WICKETS</span>
-                                <span id="lblWickets" class="text-xs font-black uppercase text-slate-500">—</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 pt-4 border-t border-slate-800">
-                        <div class="text-[10px] font-bold text-center text-slate-500 uppercase tracking-widest mb-1">Final Decision Matrix</div>
-                        <div id="finalDecisionBox" class="w-full bg-slate-950 rounded-lg py-6 text-center text-xl font-black border border-slate-800 text-slate-600">
-                            AWAITING TELEMETRY
-                        </div>
+                <!-- Loading State -->
+                <div id="loadingPanel" class="hidden">
+                    <div class="tracking-bar mb-3"></div>
+                    <div class="flex items-center gap-2 text-xs text-blue-400">
+                        <span class="pulse-dot"></span>
+                        <span id="loadingText">Tracking ball trajectory...</span>
                     </div>
                 </div>
             </div>
 
+            <!-- RIGHT: Result Panel -->
+            <div class="panel p-6 flex flex-col">
+                <h2 class="font-rajdhani text-lg font-semibold text-blue-300 tracking-widest uppercase mb-4"
+                    style="font-family:'Rajdhani',sans-serif; letter-spacing:2px;">
+                    Trajectory Analysis
+                </h2>
+
+                <!-- Placeholder state -->
+                <div id="placeholderState" class="flex-1 flex flex-col items-center justify-center text-center py-12">
+                    <div class="w-16 h-16 mb-4 rounded-full border-2 border-blue-900 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <p class="text-slate-600 text-sm">Upload a video and run the simulation<br>to see trajectory analysis here.</p>
+                </div>
+
+                <!-- Result State (hidden until analysis done) -->
+                <div id="resultState" class="hidden flex-1 flex flex-col gap-4">
+
+                    <!-- Video Output -->
+                    <div>
+                        <video id="resultVideo" controls autoplay loop muted playsinline>
+                            Your browser does not support video.
+                        </video>
+                    </div>
+
+                    <!-- Verdict Rows -->
+                    <div id="verdictRows">
+                        <!-- Filled by JS -->
+                    </div>
+
+                    <!-- Final Banner -->
+                    <div id="finalBanner" class="final-banner"></div>
+
+                    <!-- Reason -->
+                    <p id="reasonText" class="text-xs text-slate-500 text-center"></p>
+
+                    <!-- Download -->
+                    <a id="downloadLink" href="#" download class="text-center text-xs text-blue-400 hover:text-blue-300 underline mt-1">
+                        ⬇ Download Annotated Video
+                    </a>
+                </div>
+
+                <!-- Error State -->
+                <div id="errorState" class="hidden p-4 bg-red-900/20 border border-red-800 rounded-lg text-red-400 text-sm">
+                    <span id="errorText"></span>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        document.getElementById('hawkeyeForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = "Processing Tracking Arrays...";
-            submitBtn.disabled = true;
+        let selectedFile = null;
 
-            const formData = new FormData(e.target);
+        // Stance selection
+        function selectStance(hand) {
+            document.getElementById('batsmanHand').value = hand;
+            document.getElementById('btnRHB').classList.toggle('selected', hand === 'Right');
+            document.getElementById('btnLHB').classList.toggle('selected', hand === 'Left');
+        }
 
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
+        // File input
+        const videoInput = document.getElementById('videoInput');
+        const dropZone = document.getElementById('dropZone');
 
-                if(data.success) {
-                    // 1. Show and update Video Player
-                    const videoPlayer = document.getElementById('mainVideoPlayer');
-                    const placeholder = document.getElementById('videoPlaceholder');
-                    
-                    videoPlayer.src = data.video_url;
-                    videoPlayer.classList.remove('hidden');
-                    placeholder.classList.add('hidden');
-                    videoPlayer.load();
-                    videoPlayer.play();
-
-                    // 2. Update Telemetry Dashboard Panel
-                    updateTelemetryLabel('lblPitching', data.telemetry.pitching);
-                    updateTelemetryLabel('lblImpact', data.telemetry.impact);
-                    updateTelemetryLabel('lblWickets', data.telemetry.wickets);
-
-                    // 3. Process International DRS Logic Rule Engine
-                    const finalDecision = data.telemetry.final_decision;
-                    const decisionBox = document.getElementById('finalDecisionBox');
-                    const overlay = document.getElementById('verdictOverlay');
-
-                    // Style setup
-                    decisionBox.textContent = finalDecision;
-                    overlay.textContent = finalDecision;
-                    overlay.classList.remove('hidden');
-
-                    if(finalDecision === "OUT") {
-                        // Red Brand Styling
-                        decisionBox.className = "w-full bg-red-600/20 text-red-500 border border-red-500 rounded-lg py-6 text-center text-3xl font-black tracking-wider";
-                        overlay.className = "absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl bg-red-600 text-white animate-bounce";
-                    } else {
-                        // Green Brand Styling
-                        decisionBox.className = "w-full bg-emerald-600/20 text-emerald-400 border border-emerald-500 rounded-lg py-6 text-center text-3xl font-black tracking-wider";
-                        overlay.className = "absolute bottom-6 left-1/2 transform -translate-x-1/2 px-10 py-3 rounded-md font-black text-2xl tracking-widest uppercase shadow-2xl bg-emerald-600 text-white animate-bounce";
-                    }
-
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Something went wrong with the simulation.");
-            } finally {
-                submitBtn.textContent = "Analyze & Track Trajectory";
-                submitBtn.disabled = false;
-            }
+        videoInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
         });
 
-        function updateTelemetryLabel(id, value) {
-            const el = document.getElementById(id);
-            el.textContent = value;
-            
-            // Apply standard broadcasting dynamic colors
-            if (["In Line", "Hitting"].includes(value)) {
-                el.className = "text-xs font-black uppercase text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20";
-            } else if (["Outside Off", "Outside Leg", "Missing", "Outside"].includes(value)) {
-                el.className = "text-xs font-black uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20";
-            } else if (value === "Umpire's Call") {
-                el.className = "text-xs font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20";
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            const mb = (file.size / 1048576).toFixed(1);
+            document.getElementById('uploadPlaceholder').classList.add('hidden');
+            document.getElementById('fileSelected').classList.remove('hidden');
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = mb + ' MB';
+            document.getElementById('runBtn').disabled = false;
+        }
+
+        // Loading messages
+        const loadingMsgs = [
+            "Locating ball in frames...",
+            "Fitting parabolic trajectory...",
+            "Computing impact zone...",
+            "Extrapolating to stumps...",
+            "Rendering overlay...",
+            "Generating verdict..."
+        ];
+        let msgIdx = 0;
+        let msgTimer = null;
+
+        function cycleLoadingMsg() {
+            msgIdx = (msgIdx + 1) % loadingMsgs.length;
+            document.getElementById('loadingText').textContent = loadingMsgs[msgIdx];
+        }
+
+        // Run analysis
+        async function runAnalysis() {
+            if (!selectedFile) return;
+
+            const hand = document.getElementById('batsmanHand').value;
+
+            // UI state
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('loadingPanel').classList.remove('hidden');
+            document.getElementById('resultState').classList.add('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('placeholderState').classList.add('hidden');
+            msgIdx = 0;
+            document.getElementById('loadingText').textContent = loadingMsgs[0];
+            msgTimer = setInterval(cycleLoadingMsg, 1800);
+
+            const formData = new FormData();
+            formData.append('video', selectedFile);
+            formData.append('batsman_hand', hand);
+
+            try {
+                const resp = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await resp.json();
+                clearInterval(msgTimer);
+                document.getElementById('loadingPanel').classList.add('hidden');
+
+                if (data.success && data.verdict) {
+                    showResult(data);
+                } else {
+                    showError(data.error || 'Unknown error');
+                }
+            } catch (err) {
+                clearInterval(msgTimer);
+                document.getElementById('loadingPanel').classList.add('hidden');
+                showError('Network error. Is the server running?');
             }
+
+            document.getElementById('runBtn').disabled = false;
+        }
+
+        function getValueClass(label, value) {
+            const v = value.toLowerCase();
+            if (v === 'in line') return 'val-inline';
+            if (v === 'outside off') return 'val-outside-off';
+            if (v === 'outside leg') return 'val-outside-leg';
+            if (v === 'hitting') return 'val-hitting';
+            if (v === 'missing') return 'val-missing';
+            if (v.includes("umpire")) return 'val-umpires';
+            return 'val-inline';
+        }
+
+        function showResult(data) {
+            const v = data.verdict;
+            const videoUrl = data.video_url;
+
+            // Video
+            const vid = document.getElementById('resultVideo');
+            vid.src = videoUrl + '?t=' + Date.now();
+            vid.load();
+
+            // Verdict rows
+            const rows = [
+                { label: 'PITCHING', value: v.pitch },
+                { label: 'IMPACT', value: v.impact },
+                { label: 'WICKETS', value: v.wickets }
+            ];
+
+            document.getElementById('verdictRows').innerHTML = rows.map(r => `
+                <div class="verdict-row">
+                    <div class="verdict-label">${r.label}</div>
+                    <div class="verdict-value ${getValueClass(r.label, r.value)}">${r.value.toUpperCase()}</div>
+                </div>
+            `).join('');
+
+            // Final banner
+            const banner = document.getElementById('finalBanner');
+            const fd = v.final_decision;
+            banner.textContent = fd;
+            banner.className = 'final-banner';
+            if (fd === 'OUT') banner.classList.add('banner-out');
+            else if (fd === 'NOT OUT') banner.classList.add('banner-not-out');
+            else banner.classList.add('banner-umpires');
+
+            document.getElementById('reasonText').textContent = v.reason || '';
+            document.getElementById('downloadLink').href = videoUrl;
+
+            document.getElementById('resultState').classList.remove('hidden');
+        }
+
+        function showError(msg) {
+            document.getElementById('errorText').textContent = msg;
+            document.getElementById('errorState').classList.remove('hidden');
+            document.getElementById('placeholderState').classList.remove('hidden');
         }
     </script>
 </body>
