@@ -3,209 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HawkEye Vision Tracking Simulation</title>
+    <title>Live Telemetry Tracking Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0b111e; }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-        .hud-block { font-family: 'Arial Black', sans-serif; font-weight: 900; text-transform: uppercase; }
+        body { background: #070b12; font-family: system-ui, -apple-system, sans-serif; }
+        .hud-text { font-family: 'Arial Black', Impact, sans-serif; font-weight: 900; }
+        .pink-glow { filter: drop-shadow(0px 0px 8px #f43f5e); }
     </style>
 </head>
-<body class="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4">
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
 
-    <div class="w-full max-w-5xl glass rounded-2xl p-6 shadow-2xl">
-        <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
-            <div class="flex items-center gap-3">
-                <div class="h-3 w-3 rounded-full bg-red-500 animate-ping"></div>
-                <h1 class="text-lg font-bold tracking-widest text-slate-300">HAWKEYE TELEMETRY SYSTEM</h1>
+    <div class="w-full max-w-5xl bg-slate-900/40 border border-slate-800 p-6 rounded-2xl shadow-2xl backdrop-blur-md">
+        
+        <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-950 shadow-2xl mb-6">
+            <video id="mainVideoPlayer" class="w-full h-full object-cover" muted playsinline></video>
+            
+            <canvas id="trackingCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+
+            <div id="hawkEyeHUD" class="absolute left-8 bottom-8 flex flex-col gap-2 transition-all duration-500 transform translate-x-[-300px] opacity-0">
+                <div class="flex items-center w-44 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-sky-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Wickets</div>
+                    <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-text tracking-normal">HITTING</div>
+                </div>
+                <div class="flex items-center w-44 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-sky-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Impact</div>
+                    <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-text tracking-normal">IN-LINE</div>
+                </div>
+                <div class="flex items-center w-44 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-sky-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Pitching</div>
+                    <div class="bg-emerald-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-text tracking-normal">OUTSIDE OFF</div>
+                </div>
             </div>
-            <div id="statusTag" class="text-xs font-mono px-3 py-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">AWAITING VIDEO STREAM</div>
+
+            <div id="decisionBanner" class="absolute left-8 top-8 flex flex-col w-40 transition-all duration-500 transform translate-y-[-120px] opacity-0 shadow-xl">
+                <div class="bg-sky-800 text-[9px] font-bold text-center py-0.5 tracking-widest text-slate-200">ORIGINAL DECISION</div>
+                <div class="bg-emerald-600 text-sm font-black text-center py-1 text-white hud-text">NOT OUT</div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="lg:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-900 shadow-inner">
-                <video id="videoPlayer" class="w-full h-full object-cover" muted playsinline></video>
-                <canvas id="hawkEyeCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-
-                <div id="broadcastHUD" class="absolute left-6 bottom-6 flex flex-col gap-1.5 opacity-0 transition-opacity duration-300">
-                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
-                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Wickets</div>
-                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">HITTING</div>
-                    </div>
-                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
-                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Impact</div>
-                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">IN-LINE</div>
-                    </div>
-                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
-                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Pitching</div>
-                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">IN-LINE</div>
-                    </div>
+        <div class="bg-slate-950/80 p-4 border border-slate-800 rounded-xl flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <form id="visionControlForm" class="w-full flex flex-col sm:flex-row gap-4 items-center">
+                <div class="w-full sm:w-auto flex-1">
+                    <input type="file" id="videoAsset" name="video" accept="video/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer" required>
+                </div>
+                
+                <div class="w-full sm:w-48">
+                    <select name="batsman_hand" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+                        <option value="Right">Right Hand Batsman</option>
+                        <option value="Left">Left Hand Batsman</option>
+                    </select>
                 </div>
 
-                <div id="decisionHUD" class="absolute left-6 top-6 flex flex-col w-36 opacity-0 transition-opacity duration-300 shadow-lg">
-                    <div class="bg-cyan-700 text-[8px] font-bold text-white text-center py-0.5 tracking-wider">PROJECTED VERDICT</div>
-                    <div class="bg-red-600 text-xs font-black text-center py-0.5 text-white hud-block">OUT</div>
-                </div>
-            </div>
-
-            <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-900 flex flex-col justify-between">
-                <form id="automationForm" class="space-y-5">
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">1. Upload Footage</label>
-                        <input type="file" id="videoFileInput" name="video" accept="video/*" class="w-full text-xs bg-slate-900 border border-slate-800 rounded p-2 text-slate-400" required>
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">2. Batsman Configuration</label>
-                        <select name="batsman_hand" class="w-full bg-slate-900 text-xs border border-slate-800 rounded p-2 text-slate-200 font-medium focus:outline-none focus:border-cyan-600">
-                            <option value="Right">Right Hand Batsman (RHB)</option>
-                            <option value="Left">Left Hand Batsman (LHB)</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" id="processBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded transition shadow-md shadow-cyan-600/10">
-                        Run Computer Vision Engine
-                    </button>
-                </form>
-
-                <div class="bg-slate-900/50 rounded border border-slate-800 p-2.5 text-[10px] font-mono text-slate-500 leading-relaxed">
-                    System isolates the ball path. Trajectory calculation triggers automatically at the point of ball deceleration.
-                </div>
-            </div>
+                <button type="submit" id="submitActionBtn" class="w-full sm:w-auto bg-sky-600 hover:bg-sky-500 font-bold text-xs px-6 py-2.5 rounded transition shadow-lg shadow-sky-600/10 whitespace-nowrap">
+                    Analyze & Project Tracking
+                </button>
+            </form>
         </div>
     </div>
 
     <script>
-        const video = document.getElementById('videoPlayer');
-        const canvas = document.getElementById('hawkEyeCanvas');
+        const video = document.getElementById('mainVideoPlayer');
+        const canvas = document.getElementById('trackingCanvas');
         const ctx = canvas.getContext('2d');
-        let animationFrameId;
-        let isTrackingActive = false;
-        let lineProgress = 0;
-        let processedPoints = [];
+        
+        let traceProgress = 0;
+        let isAnimationRunning = false;
+        let trackingCoordinates = [];
 
-        function syncCanvasSize() {
+        function setCanvasDimensions() {
             canvas.width = video.clientWidth;
             canvas.height = video.clientHeight;
         }
-        window.addEventListener('resize', syncCanvasSize);
+        window.addEventListener('resize', setCanvasDimensions);
 
-        document.getElementById('automationForm').addEventListener('submit', async (e) => {
+        document.getElementById('visionControlForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            syncCanvasSize();
+            setCanvasDimensions();
             
-            // Clear rendering space
-            isTrackingActive = false;
-            lineProgress = 0;
+            // Clean up state fields
+            isAnimationRunning = false;
+            traceProgress = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            toggleHUDVisibility(false);
+            animateHUDWidgets(false);
 
             const formData = new FormData(e.target);
-            const processBtn = document.getElementById('processBtn');
-            const statusTag = document.getElementById('statusTag');
-            
-            processBtn.textContent = "Processing OpenCV Vectors...";
-            processBtn.disabled = true;
-            statusTag.textContent = "COMPUTING PIXEL COUNTS";
+            const btn = document.getElementById('submitActionBtn');
+            btn.textContent = "OpenCV Processing Frames...";
+            btn.disabled = true;
 
             try {
-                const res = await fetch('/analyze', { method: 'POST', body: formData });
-                const data = await res.json();
+                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const result = await response.json();
 
-                if(data.success) {
-                    processedPoints = data.points;
-                    video.src = data.video_url;
+                if (result.success) {
+                    trackingCoordinates = result.points;
+                    video.src = result.video_url;
                     video.load();
                     video.play();
-                    statusTag.textContent = "RENDERED TRAJECTORY FRAMEWAY";
 
-                    // Sync time handler trigger points dynamically based on backend calculations
-                    video.addEventListener('timeupdate', function playheadTrackingHook() {
-                        if (video.currentTime >= data.impact_time && !isTrackingActive) {
+                    // Hook directly into the precise frame synchronization sequence loop
+                    video.addEventListener('timeupdate', function playbackFreezeHook() {
+                        if (video.currentTime >= result.impact_time && !isAnimationRunning) {
                             video.pause();
-                            isTrackingActive = true;
-                            toggleHUDVisibility(true);
-                            executeVectorProjection();
-                            video.removeEventListener('timeupdate', playheadTrackingHook);
+                            isAnimationRunning = true;
+                            animateHUDWidgets(true);
+                            renderDynamicTrajectoryLine();
+                            video.removeEventListener('timeupdate', playbackFreezeHook);
                         }
                     });
                 }
             } catch (err) {
-                console.error(err);
-                statusTag.textContent = "PIXEL EXCEPTION ERROR";
+                console.error("Communication failure:", err);
             } finally {
-                processBtn.textContent = "Run Computer Vision Engine";
-                processBtn.disabled = false;
+                btn.textContent = "Analyze & Project Tracking";
+                btn.disabled = false;
             }
         });
 
-        function executeVectorProjection() {
-            if (lineProgress < 1) {
-                lineProgress += 0.03; // Vector generation rate loops
+        // Loop execution engine to draw exact line projection curves over the canvas layout
+        function renderDynamicTrajectoryLine() {
+            if (traceProgress < 1) {
+                traceProgress += 0.025; // Continuous vector drawing scale rate
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Default fallbacks calibrated for umpire camera views
-                let baseStartX = canvas.width * 0.55;
-                let baseStartY = canvas.height * 0.70;
-                let baseImpactX = canvas.width * 0.51;
-                let baseImpactY = canvas.height * 0.54;
+                // Default viewport alignments calibrated for standard tracking angles
+                let startPixelX = canvas.width * 0.56;
+                let startPixelY = canvas.height * 0.72;
+                let impactPixelX = canvas.width * 0.52;
+                let impactPixelY = canvas.height * 0.54;
 
-                // Map data positions directly from OpenCV array streams if calculated successfully
-                if (processedPoints.length > 5) {
-                    const firstPt = processedPoints[0];
-                    const middlePt = processedPoints[Math.floor(processedPoints.length / 2)];
-                    
-                    // Scale ratios
-                    const scaleX = canvas.width / video.videoWidth;
-                    const scaleY = canvas.height / video.videoHeight;
+                // Map exact pixel arrays provided from backend computer vision logs if existing
+                if (trackingCoordinates.length > 4) {
+                    const ratioX = canvas.width / video.videoWidth;
+                    const ratioY = canvas.height / video.videoHeight;
 
-                    baseStartX = firstPt.x * scaleX;
-                    baseStartY = firstPt.y * scaleY;
-                    baseImpactX = middlePt.x * scaleX;
-                    baseImpactY = middlePt.y * scaleY;
+                    startPixelX = trackingCoordinates[0].x * ratioX;
+                    startPixelY = trackingCoordinates[0].y * ratioY;
+                    impactPixelX = trackingCoordinates[Math.floor(trackingCoordinates.length / 2)].x * ratioX;
+                    impactPixelY = trackingCoordinates[Math.floor(trackingCoordinates.length / 2)].y * ratioY;
                 }
 
-                const targetStumpsX = canvas.width * 0.49;
-                const targetStumpsY = canvas.height * 0.43;
+                // Target center coordinates corresponding directly to the wicket heights
+                const targetWicketsX = canvas.width * 0.49;
+                const targetWicketsY = canvas.height * 0.42;
 
-                // Path Segment A: Real tracked timeline coordinates
+                // Render Step A: Historical tracked path down the pitch lane
                 ctx.beginPath();
-                ctx.moveTo(baseStartX, baseStartY);
-                ctx.lineTo(baseImpactX, baseImpactY);
-                ctx.strokeStyle = '#ec4899'; // Pure International Broadcast Magenta Pink Line
+                ctx.moveTo(startPixelX, startPixelY);
+                ctx.lineTo(impactPixelX, impactPixelY);
+                ctx.strokeStyle = '#ec4899'; // Bright magenta-pink solid color broadcast style
                 ctx.lineWidth = 4;
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = '#f43f5e';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ec4899';
                 ctx.stroke();
 
-                // Path Segment B: Linear predictive regression trace overlay
+                // Render Step B: Projected predictive tracking dot path
                 ctx.beginPath();
-                ctx.moveTo(baseImpactX, baseImpactY);
+                ctx.moveTo(impactPixelX, impactPixelY);
                 
-                const currentTraceX = baseImpactX + (targetStumpsX - baseImpactX) * lineProgress;
-                const currentTraceY = baseImpactY + (targetStumpsY - baseImpactY) * lineProgress;
+                const frameCurrentX = impactPixelX + (targetWicketsX - impactPixelX) * traceProgress;
+                const frameCurrentY = impactPixelY + (targetWicketsY - impactPixelY) * traceProgress;
                 
-                ctx.lineTo(currentTraceX, currentTraceY);
+                ctx.lineTo(frameCurrentX, frameCurrentY);
                 ctx.strokeStyle = '#ec4899';
                 ctx.lineWidth = 4;
-                ctx.setLineDash([4, 4]); // Dotted trajectory trace pattern
+                ctx.setLineDash([5, 4]); // Dotted overlay trace array configuration
                 ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.setLineDash([]); // Reset structure
 
-                // Target Tracker Halo Point Element
+                // Predictive halo ball element node tracking ring
                 ctx.beginPath();
-                ctx.arc(currentTraceX, currentTraceY, 5, 0, 2 * Math.PI);
+                ctx.arc(frameCurrentX, frameCurrentY, 5, 0, 2 * Math.PI);
                 ctx.fillStyle = '#ffffff';
                 ctx.fill();
 
-                animationFrameId = requestAnimationFrame(executeVectorProjection);
+                requestAnimationFrame(renderDynamicTrajectoryLine);
             }
         }
 
-        function toggleHUDVisibility(visible) {
-            const opacity = visible ? '1' : '0';
-            document.getElementById('broadcastHUD').style.opacity = opacity;
-            document.getElementById('decisionHUD').style.opacity = opacity;
+        function animateHUDWidgets(show) {
+            const hud = document.getElementById('hawkEyeHUD');
+            const banner = document.getElementById('decisionBanner');
+            if (show) {
+                hud.classList.remove('translate-x-[-300px]', 'opacity-0');
+                banner.classList.remove('translate-y-[-120px]', 'opacity-0');
+            } else {
+                hud.classList.add('translate-x-[-300px]', 'opacity-0');
+                banner.classList.add('translate-y-[-120px]', 'opacity-0');
+            }
         }
     </script>
 </body>
