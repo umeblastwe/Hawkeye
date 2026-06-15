@@ -1,138 +1,199 @@
-import os
-import cv2
-import numpy as np
-from flask import Flask, render_template, request, jsonify, url_for
-from werkzeug.utils import secure_filename
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated HawkEye Predictor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #060a13; font-family: sans-serif; }
+        .hud-font { font-family: 'Arial Black', Impact, sans-serif; font-weight: 900; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+    <div class="w-full max-w-5xl bg-slate-900/50 border border-slate-800 p-6 rounded-2xl shadow-2xl backdrop-blur-md">
+        
+        <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-950 shadow-2xl mb-6">
+            <video id="videoPlayer" class="w-full h-full object-cover" muted playsinline></video>
+            <canvas id="hawkEyeCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
-UPLOAD_FOLDER = 'static/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            <div id="hawkEyeHUD" class="absolute left-8 bottom-8 flex flex-col gap-2 transition-all duration-300 opacity-0">
+                <div class="flex items-center w-48 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-slate-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Wickets</div>
+                    <div id="hudWickets" class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-font">HITTING</div>
+                </div>
+                <div class="flex items-center w-48 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-slate-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Impact</div>
+                    <div id="hudImpact" class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-font">IN-LINE</div>
+                </div>
+                <div class="flex items-center w-48 h-7 text-[11px] font-bold tracking-wider shadow-lg">
+                    <div class="bg-slate-800 text-slate-100 px-3 flex items-center h-full w-1/2 uppercase">Pitching</div>
+                    <div id="hudPitching" class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-font">IN-LINE</div>
+                </div>
+            </div>
 
-def predict_lbw_outcome(video_path):
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 1280
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 720
-    
-    ball_points = []
-    frame_idx = 0
-    impact_frame = None
-    
-    subtractor = cv2.createBackgroundSubtractorMOG2(history=20, varThreshold=30, detectShadows=False)
-    
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame_idx += 1
-        
-        # Focus crop on the center pitch track
-        roi = frame[int(height*0.25):int(height*0.85), int(width*0.35):int(width*0.75)]
-        mask = subtractor.apply(roi)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if 5 < area < 200:
-                M = cv2.moments(cnt)
-                if M["m00"] != 0:
-                    cX = int(M["m10"] / M["m00"]) + int(width*0.35)
-                    cY = int(M["m01"] / M["m00"]) + int(height*0.25)
-                    ball_points.append((cX, cY))
-                    break
-                    
-        # Detect impact via sharp velocity drop
-        if len(ball_points) > 3 and not impact_frame:
-            dy1 = ball_points[-1][1] - ball_points[-2][1]
-            dy2 = ball_points[-2][1] - ball_points[-3][1]
-            if dy1 <= 0 and dy2 > 0:
-                impact_frame = frame_idx
-                break
+            <div id="decisionBanner" class="absolute left-8 top-8 flex flex-col w-40 transition-all duration-300 opacity-0 shadow-xl">
+                <div class="bg-slate-800 text-[9px] font-bold text-center py-0.5 text-slate-200">VERDICT PROJECTION</div>
+                <div id="hudVerdict" class="bg-red-600 text-sm font-black text-center py-1 text-white hud-font">OUT</div>
+            </div>
+        </div>
 
-    cap.release()
-    
-    if not impact_frame:
-        impact_frame = frame_idx if frame_idx > 0 else 50
-    
-    # --- PREDICITIVE MATHEMATICS ENGINE ---
-    # Defination of Virtual Stumps bounding box based on international screen aspect ratios
-    stumps_top_y = int(height * 0.42)
-    stumps_left_x = int(width * 0.47)
-    stumps_right_x = int(width * 0.52)
-    stumps_center_x = (stumps_left_x + stumps_right_x) // 2
-    margin = (stumps_right_x - stumps_left_x) // 4  # For Umpire's Call zone
-    
-    # Default fallbacks if tracking points are low
-    predicted_target_x = stumps_center_x
-    
-    # Mathematical trajectory projection using slope (m) calculation
-    if len(ball_points) >= 3:
-        pts = ball_points[-3:]  # Take final tracking frames before impact
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
+        <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl">
+            <form id="hawkEyeForm" class="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <input type="file" id="videoAsset" name="video" accept="video/*" class="text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-rose-600 file:text-white hover:file:bg-rose-500 cursor-pointer" required>
+                <button type="submit" id="submitBtn" class="bg-rose-600 hover:bg-rose-500 font-bold text-xs px-6 py-2.5 rounded transition shadow-lg whitespace-nowrap">
+                    Run Mathematical Trajectory
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoPlayer');
+        const canvas = document.getElementById('hawkEyeCanvas');
+        const ctx = canvas.getContext('2d');
         
-        # Calculate slope: m = change_in_x / change_in_y
-        dx = xs[-1] - xs[0]
-        dy = ys[-1] - ys[0]
-        
-        if dy != 0:
-            slope = dx / dy
-            # Extrapolate X coordinate at the stumps height (Y)
-            distance_y = stumps_top_y - ys[-1]
-            predicted_target_x = int(xs[-1] + (slope * distance_y))
+        let traceProgress = 0;
+        let isRunning = false;
+        let targetXCoord = 0.5;
+        let targetYCoord = 0.42;
+
+        function setCanvasSize() {
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+        }
+        window.addEventListener('resize', setCanvasSize);
+
+        document.getElementById('hawkEyeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            setCanvasSize();
             
-    # Determine precise ICC DRS rule results based on pixel calculations
-    if stumps_left_x + margin <= predicted_target_x <= stumps_right_x - margin:
-        wickets_status = "HITTING"
-        verdict = "OUT"
-    elif (stumps_left_x <= predicted_target_x < stumps_left_x + margin) or \
-         (stumps_right_x - margin < predicted_target_x <= stumps_right_x):
-        wickets_status = "UMPIRE'S CALL"
-        verdict = "DECISION PENDING"
-    else:
-        wickets_status = "MISSING"
-        verdict = "NOT OUT"
-        
-    return {
-        "freeze_time": round(impact_frame / fps, 2),
-        "target_x_pct": round(predicted_target_x / width, 3), # Percentages for frontend scaling
-        "target_y_pct": round(stumps_top_y / height, 3),
-        "pitching": "IN-LINE",
-        "impact": "IN-LINE",
-        "wickets": wickets_status,
-        "verdict": verdict
-    }
+            isRunning = false;
+            traceProgress = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            toggleHUD(false);
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+            const formData = new FormData(e.target);
+            const btn = document.getElementById('submitBtn');
+            btn.textContent = "Processing Mathematical Projections...";
+            btn.disabled = true;
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'video' not in request.files:
-        return jsonify({'error': 'No video attached'}), 400
-    file = request.files['video']
-    
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        # Run Mathematical prediction
-        result = predict_lbw_outcome(filepath)
-        
-        return jsonify({
-            'success': True,
-            'video_url': url_for('static', filename=f'uploads/{filename}'),
-            'impact_time': result['freeze_time'],
-            'target_x': result['target_x_pct'],
-            'target_y': result['target_y_pct'],
-            'telemetry': {
-                'pitching': result['pitching'],
-                'impact': result['impact'],
-                'wickets': result['wickets'],
-                'verdict': result['verdict']
+            try {
+                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    // Pull mathematical scaling points from OpenCV backend output matrices
+                    targetXCoord = result.target_x;
+                    targetYCoord = result.target_y;
+
+                    // Update UI text outputs dynamically
+                    document.getElementById('hudWickets').textContent = result.telemetry.wickets;
+                    document.getElementById('hudImpact').textContent = result.telemetry.impact;
+                    document.getElementById('hudPitching').textContent = result.telemetry.pitching;
+                    document.getElementById('hudVerdict').textContent = result.telemetry.verdict;
+
+                    // Set colors dynamically based on outcome state
+                    setHUDColors(result.telemetry.wickets, result.telemetry.verdict);
+
+                    video.src = result.video_url;
+                    video.load();
+                    video.play();
+
+                    video.addEventListener('timeupdate', function trackingHook() {
+                        if (video.currentTime >= result.impact_time && !isRunning) {
+                            video.pause();
+                            isRunning = true;
+                            toggleHUD(true);
+                            drawMathematicalPath();
+                            video.removeEventListener('timeupdate', trackingHook);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                btn.textContent = "Run Mathematical Trajectory";
+                btn.disabled = false;
             }
-        })
+        });
+
+        function drawMathematicalPath() {
+            if (traceProgress < 1) {
+                traceProgress += 0.02;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Calibrated baseline trajectory dimensions 
+                const startX = canvas.width * 0.56;
+                const startY = canvas.height * 0.72;
+                const impactX = canvas.width * 0.52;
+                const impactY = canvas.height * 0.54;
+
+                // Exact end point mapped from backend algorithmic calculation arrays
+                const finalTargetX = canvas.width * targetXCoord;
+                const finalTargetY = canvas.height * targetYCoord;
+
+                // Path 1: Pitch map line
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(impactX, impactY);
+                ctx.strokeStyle = '#ec4899';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ec4899';
+                ctx.stroke();
+
+                // Path 2: Predictive linear equation regression track
+                ctx.beginPath();
+                ctx.moveTo(impactX, impactY);
+                
+                const currX = impactX + (finalTargetX - impactX) * traceProgress;
+                const currY = impactY + (finalTargetY - impactY) * traceProgress;
+                
+                ctx.lineTo(currX, currY);
+                ctx.strokeStyle = '#ec4899';
+                ctx.lineWidth = 4;
+                ctx.setLineDash([5, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Target Node Pulse Circle
+                ctx.beginPath();
+                ctx.arc(currX, currY, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+
+                requestAnimationFrame(drawMathematicalPath);
+            }
+        }
+
+        function toggleHUD(show) {
+            const opacity = show ? '1' : '0';
+            document.getElementById('hawkEyeHUD').style.opacity = opacity;
+            document.getElementById('decisionBanner').style.opacity = opacity;
+        }
+
+        function setHUDColors(wickets, verdict) {
+            const wBox = document.getElementById('hudWickets');
+            const vBox = document.getElementById('hudVerdict');
+            
+            if (wickets === "MISSING") {
+                wBox.className = "bg-emerald-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-font";
+            } else if (wickets === "UMPIRE'S CALL") {
+                wBox.className = "bg-amber-500 text-center flex items-center justify-center h-full text-black w-1/2 hud-font";
+            } else {
+                wBox.className = "bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-font";
+            }
+
+            if (verdict === "NOT OUT") {
+                vBox.className = "bg-emerald-600 text-sm font-black text-center py-1 text-white hud-font";
+            } else if (verdict === "DECISION PENDING") {
+                vBox.className = "bg-amber-500 text-sm font-black text-center py-1 text-black hud-font";
+            } else {
+                vBox.className = "bg-red-600 text-sm font-black text-center py-1 text-white hud-font";
+            }
+        }
+    </script>
+</body>
+</html>
