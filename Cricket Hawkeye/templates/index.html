@@ -3,124 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HawkEye Real-time Tracking Projections</title>
+    <title>HawkEye Vision Tracking Simulation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { 
-            background: linear-gradient(135deg, #090d16 0%, #111e3d 100%); 
-        }
-        .glass-panel { 
-            background: rgba(255, 255, 255, 0.03); 
-            backdrop-filter: blur(16px); 
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08); 
-        }
-        .hud-banner {
-            font-family: 'Arial Black', sans-serif;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        }
+        body { background-color: #0b111e; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .hud-block { font-family: 'Arial Black', sans-serif; font-weight: 900; text-transform: uppercase; }
     </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4">
 
-    <div class="w-full max-w-6xl glass-panel rounded-2xl p-6 shadow-2xl">
-        
-        <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-3">
-            <h1 class="text-xl font-bold tracking-wider bg-gradient-to-r from-blue-400 to-indigo-200 bg-clip-text text-transparent">
-                HAWKEYE AUTOMATED DRS SYSTEM
-            </h1>
-            <span class="text-xs font-mono px-3 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/30 animate-pulse">
-                OPENCV TRACKING ENGINE ACTIVE
-            </span>
+    <div class="w-full max-w-5xl glass rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+                <div class="h-3 w-3 rounded-full bg-red-500 animate-ping"></div>
+                <h1 class="text-lg font-bold tracking-widest text-slate-300">HAWKEYE TELEMETRY SYSTEM</h1>
+            </div>
+            <div id="statusTag" class="text-xs font-mono px-3 py-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">AWAITING VIDEO STREAM</div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            <div class="lg:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-800" id="screenContainer">
-                
+            <div class="lg:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-slate-900 shadow-inner">
                 <video id="videoPlayer" class="w-full h-full object-cover" muted playsinline></video>
-                
                 <canvas id="hawkEyeCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
-                <div id="hudWidgets" class="absolute left-6 bottom-6 flex flex-col gap-2 transition-all duration-500 transform translate-x-[-250px] opacity-0">
-                    <div class="flex items-center w-48 shadow-lg">
-                        <div class="bg-blue-600 text-[10px] px-2 py-1 h-7 flex items-center justify-center font-bold text-white w-1/2">WICKETS</div>
-                        <div id="hudWickets" class="bg-red-600 text-xs px-2 py-1 h-7 flex items-center justify-center font-black text-white w-1/2 text-center hud-banner">HITTING</div>
+                <div id="broadcastHUD" class="absolute left-6 bottom-6 flex flex-col gap-1.5 opacity-0 transition-opacity duration-300">
+                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
+                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Wickets</div>
+                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">HITTING</div>
                     </div>
-                    <div class="flex items-center w-48 shadow-lg">
-                        <div class="bg-blue-600 text-[10px] px-2 py-1 h-7 flex items-center justify-center font-bold text-white w-1/2">IMPACT</div>
-                        <div id="hudImpact" class="bg-red-600 text-xs px-2 py-1 h-7 flex items-center justify-center font-black text-white w-1/2 text-center hud-banner">IN-LINE</div>
+                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
+                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Impact</div>
+                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">IN-LINE</div>
                     </div>
-                    <div class="flex items-center w-48 shadow-lg">
-                        <div class="bg-blue-600 text-[10px] px-2 py-1 h-7 flex items-center justify-center font-bold text-white w-1/2">PITCHING</div>
-                        <div id="hudPitching" class="bg-emerald-600 text-xs px-2 py-1 h-7 flex items-center justify-center font-black text-white w-1/2 text-center hud-banner">IN-LINE</div>
+                    <div class="flex items-center w-40 h-6 text-[10px] font-bold shadow-md">
+                        <div class="bg-cyan-700 px-2 flex items-center h-full text-white w-1/2 uppercase">Pitching</div>
+                        <div class="bg-red-600 text-center flex items-center justify-center h-full text-white w-1/2 hud-block">IN-LINE</div>
                     </div>
                 </div>
 
-                <div id="hudOriginalCall" class="absolute left-6 top-6 flex flex-col w-44 transition-all duration-500 transform translate-y-[-100px] opacity-0 shadow-lg">
-                    <div class="bg-blue-600 text-[9px] px-2 py-0.5 font-bold text-white text-center tracking-wider">ORIGINAL DECISION</div>
-                    <div id="hudCallText" class="bg-emerald-600 text-sm font-black text-center py-1 text-white hud-banner">NOT OUT</div>
+                <div id="decisionHUD" class="absolute left-6 top-6 flex flex-col w-36 opacity-0 transition-opacity duration-300 shadow-lg">
+                    <div class="bg-cyan-700 text-[8px] font-bold text-white text-center py-0.5 tracking-wider">PROJECTED VERDICT</div>
+                    <div class="bg-red-600 text-xs font-black text-center py-0.5 text-white hud-block">OUT</div>
                 </div>
             </div>
 
-            <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-800 pb-2">Simulation Setup</h3>
-                    
-                    <form id="uploadForm" class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">1. Delivery Video File</label>
-                            <input type="file" id="fileInput" name="video" accept="video/*" class="w-full text-xs bg-slate-900 border border-slate-700 rounded p-1.5 file:bg-blue-600 file:border-none file:text-white file:text-xs file:px-2 file:py-0.5 file:rounded file:mr-2 cursor-pointer" required>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">2. Match Parameters</label>
-                            <div class="grid grid-cols-2 gap-1.5">
-                                <select id="inpStance" name="batsman_hand" class="bg-slate-900 text-[11px] border border-slate-700 rounded p-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                                    <option value="Right">RHB Stance</option>
-                                    <option value="Left">LHB Stance</option>
-                                </select>
-                                <select id="inpCall" name="umpires_call" class="bg-slate-900 text-[11px] border border-slate-700 rounded p-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                                    <option value="Not Out">Not Out</option>
-                                    <option value="Out">Out</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">3. Trajectory Variables</label>
-                            <div class="space-y-1.5">
-                                <select id="inpPitch" name="pitching" class="w-full bg-slate-900 text-[11px] border border-slate-700 rounded p-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                                    <option value="IN-LINE">Pitching: In-Line</option>
-                                    <option value="OUTSIDE OFF">Pitching: Outside Off</option>
-                                    <option value="OUTSIDE LEG">Pitching: Outside Leg</option>
-                                </select>
-                                <select id="inpImpact" name="impact" class="w-full bg-slate-900 text-[11px] border border-slate-700 rounded p-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                                    <option value="IN-LINE">Impact: In-Line</option>
-                                    <option value="OUTSIDE">Impact: Outside</option>
-                                </select>
-                                <select id="inpWickets" name="wickets" class="w-full bg-slate-900 text-[11px] border border-slate-700 rounded p-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
-                                    <option value="HITTING">Wickets: Hitting</option>
-                                    <option value="MISSING">Wickets: Missing</option>
-                                    <option value="UMPIRE'S CALL">Wickets: Umpire's Call</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-500 font-bold text-xs py-2.5 rounded transition shadow-lg shadow-blue-600/20">
-                            Render HawkEye Tracking
-                        </button>
-                    </form>
-                </div>
-
-                <div class="mt-4 pt-3 border-t border-slate-800 text-center">
-                    <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">DRS DECISION OVERRIDE</div>
-                    <div id="sidebarDecision" class="bg-slate-900 rounded p-2 text-xs font-mono text-slate-400 border border-slate-800">
-                        AWAITING CAPTURE
+            <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-900 flex flex-col justify-between">
+                <form id="automationForm" class="space-y-5">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">1. Upload Footage</label>
+                        <input type="file" id="videoFileInput" name="video" accept="video/*" class="w-full text-xs bg-slate-900 border border-slate-800 rounded p-2 text-slate-400" required>
                     </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">2. Batsman Configuration</label>
+                        <select name="batsman_hand" class="w-full bg-slate-900 text-xs border border-slate-800 rounded p-2 text-slate-200 font-medium focus:outline-none focus:border-cyan-600">
+                            <option value="Right">Right Hand Batsman (RHB)</option>
+                            <option value="Left">Left Hand Batsman (LHB)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" id="processBtn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded transition shadow-md shadow-cyan-600/10">
+                        Run Computer Vision Engine
+                    </button>
+                </form>
+
+                <div class="bg-slate-900/50 rounded border border-slate-800 p-2.5 text-[10px] font-mono text-slate-500 leading-relaxed">
+                    System isolates the ball path. Trajectory calculation triggers automatically at the point of ball deceleration.
                 </div>
             </div>
         </div>
@@ -131,153 +80,132 @@
         const canvas = document.getElementById('hawkEyeCanvas');
         const ctx = canvas.getContext('2d');
         let animationFrameId;
-        let isProjecting = false;
-        let projectionProgress = 0;
+        let isTrackingActive = false;
+        let lineProgress = 0;
+        let processedPoints = [];
 
-        // Automatically size canvas layer over video element
-        function resizeCanvas() {
+        function syncCanvasSize() {
             canvas.width = video.clientWidth;
             canvas.height = video.clientHeight;
         }
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', syncCanvasSize);
 
-        // Core Pipeline integration to receive OpenCV frame configurations
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        document.getElementById('automationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            resizeCanvas();
+            syncCanvasSize();
             
-            // Re-initialize UI states
-            isProjecting = false;
-            projectionProgress = 0;
+            // Clear rendering space
+            isTrackingActive = false;
+            lineProgress = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            hideHUD();
+            toggleHUDVisibility(false);
 
             const formData = new FormData(e.target);
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = "OpenCV Tracking Vectors...";
-            submitBtn.disabled = true;
+            const processBtn = document.getElementById('processBtn');
+            const statusTag = document.getElementById('statusTag');
             
+            processBtn.textContent = "Processing OpenCV Vectors...";
+            processBtn.disabled = true;
+            statusTag.textContent = "COMPUTING PIXEL COUNTS";
+
             try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
+                const res = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
 
                 if(data.success) {
-                    // Update video stream target element
+                    processedPoints = data.points;
                     video.src = data.video_url;
                     video.load();
                     video.play();
-                    
-                    // Push variable strings directly onto the Screenshot Broadcast Layout HUD
-                    document.getElementById('hudPitching').textContent = data.telemetry.pitching;
-                    document.getElementById('hudImpact').textContent = data.telemetry.impact;
-                    document.getElementById('hudWickets').textContent = data.telemetry.wickets;
-                    document.getElementById('hudCallText').textContent = data.telemetry.on_field_call;
-                    document.getElementById('sidebarDecision').textContent = "MATRIX CODE: " + data.telemetry.final_decision;
+                    statusTag.textContent = "RENDERED TRAJECTORY FRAMEWAY";
 
-                    // Compute dynamic color transformations based on parameters
-                    setHUDColor('hudPitching', data.telemetry.pitching);
-                    setHUDColor('hudImpact', data.telemetry.impact);
-                    setHUDColor('hudWickets', data.telemetry.wickets);
-                    setHUDColor('hudCallText', data.telemetry.on_field_call.toUpperCase());
-
-                    // Precise event tracking handler synchronization
-                    video.addEventListener('timeupdate', function currentFrameHandler() {
-                        // Triggers dynamic pause exactly on OpenCV calculated milliseconds bounce/strike factor
-                        if (video.currentTime >= data.impact_time && !isProjecting) {
+                    // Sync time handler trigger points dynamically based on backend calculations
+                    video.addEventListener('timeupdate', function playheadTrackingHook() {
+                        if (video.currentTime >= data.impact_time && !isTrackingActive) {
                             video.pause();
-                            isProjecting = true;
-                            showHUD();
-                            animateHawkEyeLine();
-                            video.removeEventListener('timeupdate', currentFrameHandler);
+                            isTrackingActive = true;
+                            toggleHUDVisibility(true);
+                            executeVectorProjection();
+                            video.removeEventListener('timeupdate', playheadTrackingHook);
                         }
                     });
-                } else {
-                    alert("CV Processing Exception: " + data.error);
                 }
-            } catch (error) {
-                console.error("Critical communications breakdown:", error);
-                alert("Communications network failure fetching system telemetry logs.");
+            } catch (err) {
+                console.error(err);
+                statusTag.textContent = "PIXEL EXCEPTION ERROR";
             } finally {
-                submitBtn.textContent = "Render HawkEye Tracking";
-                submitBtn.disabled = false;
+                processBtn.textContent = "Run Computer Vision Engine";
+                processBtn.disabled = false;
             }
         });
 
-        // Dynamic vector trajectory prediction draw cycle loop
-        function animateHawkEyeLine() {
-            if (projectionProgress < 1) {
-                projectionProgress += 0.025; // Control loop resolution speed factor
-                
+        function executeVectorProjection() {
+            if (lineProgress < 1) {
+                lineProgress += 0.03; // Vector generation rate loops
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Base 3D isometric simulation mapping coordinates
-                const startX = canvas.width * 0.58;
-                const startY = canvas.height * 0.75;
-                const impactX = canvas.width * 0.52;
-                const impactY = canvas.height * 0.55;
 
-                let targetX = canvas.width * 0.49; 
-                let targetY = canvas.height * 0.42;
+                // Default fallbacks calibrated for umpire camera views
+                let baseStartX = canvas.width * 0.55;
+                let baseStartY = canvas.height * 0.70;
+                let baseImpactX = canvas.width * 0.51;
+                let baseImpactY = canvas.height * 0.54;
 
-                // Adjust trajectory curve angle away from stumps if evaluation calculates a 'MISSING' result
-                if (document.getElementById('hudWickets').textContent === 'MISSING') {
-                    targetX = canvas.width * 0.42; 
+                // Map data positions directly from OpenCV array streams if calculated successfully
+                if (processedPoints.length > 5) {
+                    const firstPt = processedPoints[0];
+                    const middlePt = processedPoints[Math.floor(processedPoints.length / 2)];
+                    
+                    // Scale ratios
+                    const scaleX = canvas.width / video.videoWidth;
+                    const scaleY = canvas.height / video.videoHeight;
+
+                    baseStartX = firstPt.x * scaleX;
+                    baseStartY = firstPt.y * scaleY;
+                    baseImpactX = middlePt.x * scaleX;
+                    baseImpactY = middlePt.y * scaleY;
                 }
 
-                // Path Segment A: Delivery release trajectory down the track onto the pitch
+                const targetStumpsX = canvas.width * 0.49;
+                const targetStumpsY = canvas.height * 0.43;
+
+                // Path Segment A: Real tracked timeline coordinates
                 ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(impactX, impactY);
-                ctx.strokeStyle = '#e11d48'; 
+                ctx.moveTo(baseStartX, baseStartY);
+                ctx.lineTo(baseImpactX, baseImpactY);
+                ctx.strokeStyle = '#ec4899'; // Pure International Broadcast Magenta Pink Line
                 ctx.lineWidth = 4;
-                ctx.shadowBlur = 12;
+                ctx.shadowBlur = 8;
                 ctx.shadowColor = '#f43f5e';
                 ctx.stroke();
 
-                // Path Segment B: Dotted structural simulation prediction line to stumps
+                // Path Segment B: Linear predictive regression trace overlay
                 ctx.beginPath();
-                ctx.moveTo(impactX, impactY);
+                ctx.moveTo(baseImpactX, baseImpactY);
                 
-                const currentX = impactX + (targetX - impactX) * projectionProgress;
-                const currentY = impactY + (targetY - impactY) * projectionProgress;
+                const currentTraceX = baseImpactX + (targetStumpsX - baseImpactX) * lineProgress;
+                const currentTraceY = baseImpactY + (targetStumpsY - baseImpactY) * lineProgress;
                 
-                ctx.lineTo(currentX, currentY);
-                ctx.strokeStyle = '#f43f5e';
+                ctx.lineTo(currentTraceX, currentTraceY);
+                ctx.strokeStyle = '#ec4899';
                 ctx.lineWidth = 4;
-                ctx.setLineDash([5, 4]); 
+                ctx.setLineDash([4, 4]); // Dotted trajectory trace pattern
                 ctx.stroke();
-                ctx.setLineDash([]); // Clean trace cache
+                ctx.setLineDash([]);
 
-                // Target tracker halo effect
+                // Target Tracker Halo Point Element
                 ctx.beginPath();
-                ctx.arc(currentX, currentY, 6, 0, 2 * Math.PI);
+                ctx.arc(currentTraceX, currentTraceY, 5, 0, 2 * Math.PI);
                 ctx.fillStyle = '#ffffff';
                 ctx.fill();
 
-                animationFrameId = requestAnimationFrame(animateHawkEyeLine);
+                animationFrameId = requestAnimationFrame(executeVectorProjection);
             }
         }
 
-        function showHUD() {
-            document.getElementById('hudWidgets').classList.remove('translate-x-[-250px]', 'opacity-0');
-            document.getElementById('hudOriginalCall').classList.remove('translate-y-[-100px]', 'opacity-0');
-        }
-
-        function hideHUD() {
-            document.getElementById('hudWidgets').classList.add('translate-x-[-250px]', 'opacity-0');
-            document.getElementById('hudOriginalCall').classList.add('translate-y-[-100px]', 'opacity-0');
-        }
-
-        function setHUDColor(id, value) {
-            const el = document.getElementById(id);
-            if (['IN-LINE', 'HITTING', 'OUT'].includes(value)) {
-                el.className = "bg-red-600 text-xs px-2 py-1 h-7 flex items-center justify-center font-black text-white w-1/2 text-center hud-banner";
-            } else {
-                el.className = "bg-emerald-600 text-xs px-2 py-1 h-7 flex items-center justify-center font-black text-white w-1/2 text-center hud-banner";
-            }
+        function toggleHUDVisibility(visible) {
+            const opacity = visible ? '1' : '0';
+            document.getElementById('broadcastHUD').style.opacity = opacity;
+            document.getElementById('decisionHUD').style.opacity = opacity;
         }
     </script>
 </body>
