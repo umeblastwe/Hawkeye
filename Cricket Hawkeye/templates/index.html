@@ -1,1195 +1,273 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HawkEye LBW System</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&display=swap');
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #05080f;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    min-height: 100vh;
-    color: #fff;
-  }
-
-  /* ── BROADCAST FONT — same weight as Sky/Star Sports overlays ── */
-  .bf { font-family: 'Barlow Condensed', 'Arial Black', Impact, sans-serif; font-weight: 900; }
-
-  /* ── VIDEO WRAPPER ── */
-  #videoWrap {
-    position: relative;
-    width: 100%;
-    background: #000;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.9);
-  }
-
-  #videoEl {
-    display: block;
-    width: 100%;
-    max-height: 70vh;
-    object-fit: contain;
-    background: #000;
-  }
-
-  /* Canvas sits exactly over the video */
-  #overlayCanvas {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-  }
-
-  /* ── LEFT HUD PANELS (broadcast style — slide in from left) ── */
-  #broadcastHUD {
-    position: absolute;
-    left: 14px;
-    bottom: 56px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    z-index: 20;
-    transform: translateX(-280px);
-    opacity: 0;
-    transition: transform 0.5s cubic-bezier(.22,.68,0,1.2), opacity 0.4s ease;
-  }
-  #broadcastHUD.visible {
-    transform: translateX(0);
-    opacity: 1;
-  }
-
-  .hud-row {
-    display: flex;
-    align-items: stretch;
-    height: 34px;
-    min-width: 230px;
-    border-radius: 2px;
-    overflow: hidden;
-    box-shadow: 0 3px 16px rgba(0,0,0,0.8), 0 1px 4px rgba(0,0,0,0.5);
-    opacity: 0;
-    transform: translateX(-40px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
-  }
-  .hud-row.show { opacity: 1; transform: translateX(0); }
-
-  .hud-label {
-    background: #0369a1;   /* Sky Sports blue */
-    color: #bae6fd;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1.8px;
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    min-width: 84px;
-    border-right: 1px solid rgba(255,255,255,0.12);
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-  }
-
-  .hud-value {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: #fff;
-    padding: 0 14px;
-    font-family: 'Barlow Condensed', 'Arial Black', sans-serif;
-  }
-  .hud-value.green  { background: #15803d; }
-  .hud-value.red    { background: #b91c1c; }
-  .hud-value.amber  { background: #b45309; color: #fff; }
-
-  /* ── TOP-LEFT ORIGINAL DECISION CARD ── */
-  #decisionCard {
-    position: absolute;
-    top: 12px;
-    left: 14px;
-    width: 168px;
-    border-radius: 2px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.9);
-    z-index: 20;
-    transform: translateY(-80px);
-    opacity: 0;
-    transition: transform 0.5s cubic-bezier(.22,.68,0,1.2), opacity 0.4s ease;
-  }
-  #decisionCard.visible {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  .dc-header {
-    background: #0369a1;
-    color: #bae6fd;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-align: center;
-    padding: 4px 0;
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-  }
-  .dc-value {
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 2px;
-    text-align: center;
-    padding: 6px 0 7px;
-    font-family: 'Barlow Condensed', 'Arial Black', sans-serif;
-  }
-  .dc-value.green  { background: #15803d; }
-  .dc-value.red    { background: #b91c1c; }
-  .dc-value.amber  { background: #b45309; }
-
-  /* ── CENTRE VERDICT FLASH ── */
-  #verdictFlash {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.6);
-    opacity: 0;
-    pointer-events: none;
-    z-index: 30;
-    text-align: center;
-    transition: all 0.4s cubic-bezier(.34,1.56,.64,1);
-  }
-  #verdictFlash.show {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-  }
-  #verdictFlash .vf-box {
-    font-family: 'Barlow Condensed', 'Arial Black', sans-serif;
-    font-size: 56px;
-    font-weight: 900;
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    padding: 12px 44px 14px;
-    border-radius: 4px;
-    box-shadow: 0 8px 50px rgba(0,0,0,0.9);
-    border: 2px solid rgba(255,255,255,0.15);
-    backdrop-filter: blur(6px);
-  }
-  #verdictFlash .vf-sub {
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.7);
-    margin-top: 8px;
-    text-transform: uppercase;
-  }
-
-  /* ── PROGRESS BAR ── */
-  #progressWrap {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 20px 12px 6px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.85));
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  #progressTrack {
-    width: 100%;
-    height: 4px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    cursor: pointer;
-    position: relative;
-  }
-  #progressFill {
-    height: 100%;
-    background: #38bdf8;
-    border-radius: 2px;
-    width: 0%;
-    pointer-events: none;
-  }
-  /* bounce / impact markers on timeline */
-  .timeline-marker {
-    position: absolute;
-    top: -3px;
-    width: 3px;
-    height: 10px;
-    border-radius: 1px;
-    transform: translateX(-50%);
-  }
-
-  .ctrl-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .ctrl-btn {
-    background: none; border: none; color: #fff;
-    cursor: pointer; padding: 3px; border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.1s;
-  }
-  .ctrl-btn:hover { background: rgba(255,255,255,0.12); }
-  .ctrl-btn svg { width: 18px; height: 18px; fill: currentColor; }
-
-  .time-txt {
-    font-size: 11px;
-    color: rgba(255,255,255,0.75);
-    font-family: monospace;
-    min-width: 88px;
-  }
-
-  .speed-btn {
-    background: rgba(255,255,255,0.12);
-    border: none; color: #fff;
-    padding: 2px 8px; border-radius: 10px;
-    font-size: 11px; cursor: pointer;
-  }
-
-  /* ── UPLOAD ZONE ── */
-  #uploadZone {
-    border: 2px dashed rgba(56,189,248,0.35);
-    border-radius: 10px;
-    padding: 44px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: rgba(56,189,248,0.03);
-  }
-  #uploadZone:hover, #uploadZone.drag { border-color: #38bdf8; background: rgba(56,189,248,0.08); }
-
-  /* ── RIGHT PANEL CARDS ── */
-  .rcard {
-    background: #111827;
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 10px;
-  }
-  .rcard-header {
-    background: #0369a1;
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #bae6fd;
-    padding: 5px 12px;
-  }
-  .rcard-value {
-    font-family: 'Barlow Condensed', 'Arial Black', sans-serif;
-    font-size: 22px;
-    font-weight: 900;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: #fff;
-    padding: 10px 12px 11px;
-  }
-  .rcard-value.green  { background: #14532d; color: #4ade80; }
-  .rcard-value.red    { background: #450a0a; color: #f87171; }
-  .rcard-value.amber  { background: #431407; color: #fb923c; }
-
-  /* ── SETTINGS ── */
-  .sel {
-    background: #0f172a;
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #e2e8f0;
-    padding: 7px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    width: 100%;
-    outline: none;
-  }
-  .sel:focus { border-color: #38bdf8; }
-
-  .lbl {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #64748b;
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  /* ── ANALYSE BTN ── */
-  #analyseBtn {
-    background: linear-gradient(135deg, #0369a1, #0284c7);
-    border: none; color: #fff;
-    font-size: 14px; font-weight: 700;
-    padding: 13px 0; border-radius: 7px;
-    cursor: pointer; width: 100%;
-    letter-spacing: 0.5px;
-    transition: all 0.2s;
-    box-shadow: 0 4px 20px rgba(3,105,161,0.4);
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    text-transform: uppercase;
-  }
-  #analyseBtn:hover { background: linear-gradient(135deg, #0284c7, #0ea5e9); transform: translateY(-1px); }
-  #analyseBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  /* ── SPINNER ── */
-  .spinner {
-    width: 18px; height: 18px;
-    border: 2px solid rgba(56,189,248,0.25);
-    border-top-color: #38bdf8;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: none;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── HAWKEYE LOGO watermark ── */
-  #hwLogo {
-    position: absolute;
-    bottom: 44px; right: 10px;
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.18);
-    text-transform: uppercase;
-    pointer-events: none;
-    z-index: 5;
-  }
-
-  /* ── DRS banner ── */
-  #drsBanner {
-    position: absolute;
-    top: 10px; right: 10px;
-    background: rgba(0,0,0,0.8);
-    border: 1px solid rgba(251,191,36,0.5);
-    border-radius: 4px;
-    padding: 4px 14px;
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2.5px;
-    color: #fbbf24;
-    text-transform: uppercase;
-    z-index: 20;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  #drsBanner.show { opacity: 1; }
-
-  /* History badges */
-  .hist-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: 'Barlow Condensed', Arial, sans-serif;
-    letter-spacing: 1px;
-  }
-  .hist-badge.out   { background: #450a0a; color: #f87171; }
-  .hist-badge.notout { background: #14532d; color: #4ade80; }
-  .hist-badge.uc    { background: #431407; color: #fb923c; }
-</style>
-</head>
-<body>
-
-<!-- ── HEADER ─────────────────────────────────────────────────── -->
-<div style="background:#040810;border-bottom:1px solid rgba(255,255,255,0.05);padding:10px 20px;display:flex;align-items:center;gap:12px;">
-  <div style="width:34px;height:34px;background:#0369a1;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px;">🏏</div>
-  <div>
-    <div class="bf" style="font-size:18px;letter-spacing:2px;color:#fff;">HAWKEYE LBW SYSTEM</div>
-    <div style="font-size:10px;letter-spacing:3px;color:#38bdf8;margin-top:1px;">DRS — BALL TRACKING TECHNOLOGY</div>
-  </div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-    <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;animation:spin 2s linear infinite;display:inline-block;animation:pulse 1.5s infinite;"></span>
-    <span style="font-size:11px;color:#64748b;" id="statusTxt">Ready</span>
-  </div>
-</div>
-
-<!-- ── MAIN ────────────────────────────────────────────────────── -->
-<div style="display:grid;grid-template-columns:1fr 300px;height:calc(100vh - 54px);overflow:hidden;">
-
-  <!-- LEFT: VIDEO ────────── -->
-  <div style="padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
-
-    <!-- Upload section (shows before video) -->
-    <div id="uploadSection">
-      <div id="uploadZone" onclick="document.getElementById('fileIn').click()">
-        <input type="file" id="fileIn" accept="video/*" style="display:none">
-        <div style="font-size:52px;margin-bottom:12px;">🎥</div>
-        <div style="font-size:18px;font-weight:600;color:#fff;margin-bottom:6px;">Upload Cricket Delivery Video</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:16px;">MP4 · MOV · AVI · WebM — any size</div>
-        <div style="display:inline-flex;align-items:center;gap:8px;background:#0369a1;color:#fff;padding:10px 24px;border-radius:7px;font-size:14px;font-weight:600;">
-          📂 Browse Video
-        </div>
-        <div style="font-size:11px;color:#334155;margin-top:10px;">Or drag & drop here</div>
-      </div>
-
-      <!-- Settings -->
-      <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;margin-top:12px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;margin-bottom:12px;text-transform:uppercase;">Match Settings</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <span class="lbl">Batsman</span>
-            <select class="sel" id="batsmanHand">
-              <option value="Right">Right-Handed (RHB)</option>
-              <option value="Left">Left-Handed (LHB)</option>
-            </select>
-          </div>
-          <div>
-            <span class="lbl">Playing a Shot?</span>
-            <select class="sel" id="playingShot">
-              <option value="yes">Yes</option>
-              <option value="no">No (Pad Play)</option>
-            </select>
-          </div>
-        </div>
-        <button id="analyseBtn" onclick="runAnalysis()" disabled style="margin-top:12px;">
-          ⚡ RUN HAWKEYE BALL TRACKING
-        </button>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:10px;color:#64748b;font-size:12px;" id="loadingRow" style="display:none!important;">
-          <div class="spinner" id="spinner"></div>
-          <span id="loadingTxt"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Video Player (hidden until video loaded) -->
-    <div id="playerSection" style="display:none;flex-direction:column;gap:10px;">
-
-      <div id="videoWrap">
-        <video id="videoEl" playsinline muted></video>
-        <canvas id="overlayCanvas"></canvas>
-
-        <!-- Broadcast overlays -->
-        <div id="decisionCard">
-          <div class="dc-header">ORIGINAL DECISION</div>
-          <div class="dc-value" id="dcValue">NOT OUT</div>
-        </div>
-
-        <div id="broadcastHUD">
-          <div class="hud-row" id="hudWickets">
-            <div class="hud-label">Wickets</div>
-            <div class="hud-value" id="hudWicketsVal">—</div>
-          </div>
-          <div class="hud-row" id="hudImpact">
-            <div class="hud-label">Impact</div>
-            <div class="hud-value" id="hudImpactVal">—</div>
-          </div>
-          <div class="hud-row" id="hudPitching">
-            <div class="hud-label">Pitching</div>
-            <div class="hud-value" id="hudPitchingVal">—</div>
-          </div>
-        </div>
-
-        <div id="verdictFlash">
-          <div class="vf-box" id="vfBox"></div>
-          <div class="vf-sub" id="vfSub"></div>
-        </div>
-
-        <div id="hwLogo">HAWKEYE LBW</div>
-        <div id="drsBanner">⚡ DRS REVIEW</div>
-
-        <!-- Playback controls -->
-        <div id="progressWrap">
-          <div id="progressTrack" onclick="seek(event)">
-            <div id="progressFill"></div>
-            <div id="markerBounce" class="timeline-marker" style="background:#38bdf8;display:none;"></div>
-            <div id="markerImpact" class="timeline-marker" style="background:#ec4899;display:none;"></div>
-          </div>
-          <div class="ctrl-row">
-            <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="ctrl-btn" onclick="step(-5)" title="-5f">
-              <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
-            </button>
-            <button class="ctrl-btn" onclick="step(-1)" title="-1f">
-              <svg viewBox="0 0 24 24"><path d="M15 8.5v7L11 12zm-7-2.5h2v12H8z" transform="scale(0.8) translate(3,3)"/></svg>
-            </button>
-            <button class="ctrl-btn" onclick="step(1)" title="+1f">
-              <svg viewBox="0 0 24 24"><path d="M9 8.5l4 3.5-4 3.5V8.5zm6-2.5h2v12h-2z" transform="scale(0.8) translate(3,3)"/></svg>
-            </button>
-            <button class="ctrl-btn" onclick="step(5)" title="+5f">
-              <svg viewBox="0 0 24 24"><path d="M18 6h-2v12h2zm-3.5 6L6 6v12z"/></svg>
-            </button>
-            <div class="time-txt" id="timeTxt">0:00 / 0:00</div>
-            <div style="flex:1"></div>
-            <button class="speed-btn" onclick="cycleSpeed()">1×</button>
-            <button class="ctrl-btn" onclick="toggleLoop()" id="loopBtn" title="Loop">
-              <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-            </button>
-            <button class="ctrl-btn" onclick="fullscreen()" title="Fullscreen">
-              <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Re-analyse controls -->
-      <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <span style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;">Re-Analyse</span>
-          <button onclick="resetPlayer()" style="font-size:11px;color:#38bdf8;background:none;border:none;cursor:pointer;text-decoration:underline;">← New video</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div>
-            <span class="lbl">Batsman</span>
-            <select class="sel" id="batsmanHand2">
-              <option value="Right">Right-Handed</option>
-              <option value="Left">Left-Handed</option>
-            </select>
-          </div>
-          <div>
-            <span class="lbl">Shot?</span>
-            <select class="sel" id="playingShot2">
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </div>
-        </div>
-        <button id="reAnalyseBtn" onclick="reAnalyse()" style="background:linear-gradient(135deg,#0369a1,#0284c7);border:none;color:#fff;font-size:13px;font-weight:700;padding:11px 0;border-radius:6px;cursor:pointer;width:100%;margin-top:10px;font-family:'Barlow Condensed',Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;">
-          🔁 RE-RUN TRACKING
-        </button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- RIGHT PANEL ─────────── -->
-  <div style="border-left:1px solid rgba(255,255,255,0.05);background:#080c14;display:flex;flex-direction:column;overflow-y:auto;">
-
-    <!-- Verdict hero -->
-    <div style="padding:14px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:8px;">Hawkeye Verdict</div>
-      <div id="verdictHero" style="border-radius:8px;padding:16px;text-align:center;background:#0d1117;border:1px solid rgba(255,255,255,0.05);">
-        <div style="color:#334155;font-size:13px;">Run analysis to see verdict</div>
-      </div>
-    </div>
-
-    <!-- LBW Check Cards -->
-    <div style="padding:14px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:8px;">LBW Checks</div>
-      <div id="checkCards">
-        <div style="color:#334155;font-size:12px;">—</div>
-      </div>
-    </div>
-
-    <!-- Ball detection info -->
-    <div style="padding:14px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:8px;">Detection Data</div>
-      <div id="detectionInfo" style="color:#334155;font-size:12px;">—</div>
-    </div>
-
-    <!-- History -->
-    <div style="padding:14px;flex:1;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:8px;">Decision History</div>
-      <div id="historyList" style="display:flex;flex-direction:column;gap:6px;">
-        <div style="color:#334155;font-size:12px;">No decisions yet</div>
-      </div>
-    </div>
-
-    <!-- LBW Laws -->
-    <div style="padding:14px;border-top:1px solid rgba(255,255,255,0.05);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:8px;">Law 36 — Quick Ref</div>
-      <div style="font-size:11px;color:#334155;line-height:1.9;">
-        <div>⛔ Pitched outside leg → NOT OUT</div>
-        <div>⛔ Impact outside off (shot) → NOT OUT</div>
-        <div>⛔ Missing stumps → NOT OUT</div>
-        <div>⛔ Over stump height → NOT OUT</div>
-        <div>⚠️ Clipping / borderline → UMPIRE'S CALL</div>
-        <div>✅ All checks pass → OUT</div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ─────────────────────────── SCRIPT ─────────────────────────── -->
-<script>
-// ── State ──────────────────────────────────────────────────────
-const video    = document.getElementById('videoEl');
-const canvas   = document.getElementById('overlayCanvas');
-const ctx      = canvas.getContext('2d');
-let currentData  = null;
-let animFrame    = null;
-let animProgress = 0;
-let speeds       = [0.1, 0.25, 0.5, 1, 2];
-let speedIdx     = 3;
-let looping      = false;
-let history      = [];
-let pendingFile  = null;
-
-// ── File Input ─────────────────────────────────────────────────
-document.getElementById('fileIn').addEventListener('change', e => {
-  const f = e.target.files[0];
-  if (f) selectFile(f);
-});
-
-const uz = document.getElementById('uploadZone');
-uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag'); });
-uz.addEventListener('dragleave', () => uz.classList.remove('drag'));
-uz.addEventListener('drop', e => {
-  e.preventDefault(); uz.classList.remove('drag');
-  const f = e.dataTransfer.files[0];
-  if (f && f.type.startsWith('video/')) selectFile(f);
-});
-
-function selectFile(f) {
-  pendingFile = f;
-  // Local preview
-  const url = URL.createObjectURL(f);
-  video.src = url;
-  video.load();
-  video.onloadedmetadata = () => {
-    showPlayer();
-    setStatus('Loaded: ' + f.name);
-    document.getElementById('analyseBtn').disabled = false;
-  };
-}
-
-function showPlayer() {
-  document.getElementById('uploadSection').style.display = 'none';
-  document.getElementById('playerSection').style.display = 'flex';
-  video.addEventListener('timeupdate', updateProgress);
-  video.addEventListener('ended', () => {
-    if (looping) video.play();
-    else setPlayIcon(false);
-  });
-  setTimeout(resizeCanvas, 100);
-}
-
-function resetPlayer() {
-  document.getElementById('playerSection').style.display = 'none';
-  document.getElementById('uploadSection').style.display = 'block';
-  video.src = '';
-  pendingFile = null;
-  currentData = null;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  hideHUD();
-}
-
-// ── Canvas resize ──────────────────────────────────────────────
-function resizeCanvas() {
-  const rect = video.getBoundingClientRect();
-  canvas.width  = rect.width;
-  canvas.height = rect.height;
-  canvas.style.width  = rect.width  + 'px';
-  canvas.style.height = rect.height + 'px';
-}
-window.addEventListener('resize', () => { resizeCanvas(); if (currentData) redrawOverlay(); });
-
-// ── Playback ───────────────────────────────────────────────────
-function togglePlay() {
-  if (video.paused) { video.play(); setPlayIcon(true); }
-  else              { video.pause(); setPlayIcon(false); }
-}
-function setPlayIcon(playing) {
-  document.getElementById('playBtn').innerHTML = playing
-    ? '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
-    : '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg>';
-}
-function step(n) {
-  video.pause(); setPlayIcon(false);
-  video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + n / 30));
-}
-function updateProgress() {
-  const pct = (video.currentTime / video.duration * 100) || 0;
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('timeTxt').textContent = fmt(video.currentTime) + ' / ' + fmt(video.duration);
-}
-function seek(e) {
-  const tr = document.getElementById('progressTrack').getBoundingClientRect();
-  video.currentTime = ((e.clientX - tr.left) / tr.width) * video.duration;
-}
-function fmt(s) {
-  if (!s || isNaN(s)) return '0:00';
-  return Math.floor(s/60) + ':' + ('0' + Math.floor(s%60)).slice(-2);
-}
-function cycleSpeed() {
-  speedIdx = (speedIdx + 1) % speeds.length;
-  video.playbackRate = speeds[speedIdx];
-  document.querySelector('.speed-btn').textContent = speeds[speedIdx] + '×';
-}
-function toggleLoop() {
-  looping = !looping;
-  document.getElementById('loopBtn').style.color = looping ? '#38bdf8' : '#fff';
-}
-function fullscreen() {
-  const w = document.getElementById('videoWrap');
-  if (!document.fullscreenElement) w.requestFullscreen();
-  else document.exitFullscreen();
-}
-
-// ── Analysis ───────────────────────────────────────────────────
-async function runAnalysis() {
-  if (!pendingFile) return;
-  setLoading(true, 'Running OpenCV ball tracker…');
-  document.getElementById('analyseBtn').disabled = true;
-
-  const fd = new FormData();
-  fd.append('video', pendingFile);
-  fd.append('batsman_hand', document.getElementById('batsmanHand').value);
-  fd.append('playing_shot', document.getElementById('playingShot').value);
-
-  try {
-    const res  = await fetch('/analyze', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.success) {
-      processResult(data);
-    } else {
-      alert('Error: ' + (data.error || 'Unknown'));
-    }
-  } catch(e) {
-    alert('Upload failed: ' + e.message);
-  }
-  setLoading(false);
-  document.getElementById('analyseBtn').disabled = false;
-}
-
-async function reAnalyse() {
-  if (!pendingFile) { alert('No video — please upload again'); return; }
-  document.getElementById('reAnalyseBtn').disabled = true;
-
-  const fd = new FormData();
-  fd.append('video', pendingFile);
-  fd.append('batsman_hand', document.getElementById('batsmanHand2').value);
-  fd.append('playing_shot', document.getElementById('playingShot2').value);
-
-  try {
-    const res  = await fetch('/analyze', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.success) processResult(data);
-  } catch(e) { alert('Error: ' + e.message); }
-  document.getElementById('reAnalyseBtn').disabled = false;
-}
-
-// ── Process & render result ─────────────────────────────────────
-function processResult(data) {
-  currentData = data;
-  showPlayer();
-
-  // Update video source to server-stored version
-  video.src = data.video_url;
-  video.load();
-  video.onloadedmetadata = () => {
-    setStatus('Analysis complete — ' + data.telemetry.verdict);
-    setupTimeline(data);
-    updateRightPanel(data);
-    addHistory(data);
-    // Seek to just before the bounce, play, then freeze at impact
-    video.currentTime = Math.max(0, data.bounce_time - 0.5);
-    video.play(); setPlayIcon(true);
-    watchForImpact(data);
-    setTimeout(resizeCanvas, 100);
-  };
-}
-
-// ── Watch video time and freeze at impact moment ───────────────
-function watchForImpact(data) {
-  let triggered = false;
-
-  function check() {
-    if (!triggered && video.currentTime >= data.impact_time) {
-      triggered = true;
-      video.pause(); setPlayIcon(false);
-      // Short delay then show broadcast sequence
-      setTimeout(() => startBroadcastSequence(data), 300);
-      return;
-    }
-    if (!triggered) requestAnimationFrame(check);
-  }
-  requestAnimationFrame(check);
-}
-
-// ── BROADCAST SEQUENCE ─────────────────────────────────────────
-function startBroadcastSequence(data) {
-  resizeCanvas();
-
-  // Show DRS banner
-  document.getElementById('drsBanner').classList.add('show');
-
-  // Populate HUD values & colours
-  const tel = data.telemetry;
-  setHudRow('hudWickets',  'hudWicketsVal',  tel.wickets,  hudColour(tel.wickets));
-  setHudRow('hudImpact',   'hudImpactVal',   tel.impact,   hudColour(tel.impact));
-  setHudRow('hudPitching', 'hudPitchingVal', tel.pitching, hudColour(tel.pitching));
-
-  // Populate decision card
-  const dcEl = document.getElementById('dcValue');
-  dcEl.textContent  = tel.verdict;
-  dcEl.className    = 'dc-value ' + verdictColour(tel.verdict);
-
-  // ── Step 1: Draw ball path on canvas (animated) ──
-  setTimeout(() => {
-    animateBallPath(data, () => {
-      // ── Step 2: Slide in HUD panels one by one ──
-      document.getElementById('broadcastHUD').classList.add('visible');
-      const rows = ['hudPitching','hudImpact','hudWickets'];
-      rows.forEach((id, i) => {
-        setTimeout(() => document.getElementById(id).classList.add('show'), i * 350);
-      });
-
-      // ── Step 3: Show original decision card ──
-      setTimeout(() => {
-        document.getElementById('decisionCard').classList.add('visible');
-      }, 400);
-
-      // ── Step 4: Flash centre verdict ──
-      setTimeout(() => {
-        showVerdictFlash(tel.verdict);
-        document.getElementById('drsBanner').classList.remove('show');
-      }, rows.length * 350 + 600);
-    });
-  }, 400);
-}
-
-// ── Animated ball path on canvas ──────────────────────────────
-function animateBallPath(data, onDone) {
-  cancelAnimationFrame(animFrame);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Scale factor: canvas px vs video native px
-  const scaleX = canvas.width  / data.vid_width;
-  const scaleY = canvas.height / data.vid_height;
-
-  const pitchX  = data.pitch_x  * scaleX;
-  const pitchY  = data.pitch_y  * scaleY;
-  const impX    = data.impact_x * scaleX;
-  const impY    = data.impact_y * scaleY;
-  const projX   = data.proj_x   * scaleX;
-  const projY   = data.proj_y   * scaleY;
-  const stumpL  = data.stump_left  * scaleX;
-  const stumpR  = data.stump_right * scaleX;
-  const stumpTY = data.stump_top_y * scaleY;
-  const stumpBY = data.stump_bot_y * scaleY;
-
-  // Raw detected ball path points
-  const rawPts = (data.ball_path || []).map(p => [p[0]*scaleX, p[1]*scaleY]);
-
-  let phase    = 0;  // 0=draw flight, 1=draw projection
-  let progress = 0;
-
-  // Draw stump lines faintly
-  function drawStumps() {
-    ctx.globalAlpha = 0.45;
-    [[stumpL, '#fff'], [data.stump_cx * scaleX, '#fff'], [stumpR, '#fff']].forEach(([sx, col]) => {
-      ctx.strokeStyle = col;
-      ctx.lineWidth   = 2;
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(sx, stumpTY);
-      ctx.lineTo(sx, stumpBY);
-      ctx.stroke();
-    });
-    ctx.globalAlpha = 1;
-  }
-
-  function drawPhase0() {
-    // Actual detected path (up to bounce)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStumps();
-
-    if (rawPts.length >= 2) {
-      const endIdx = Math.floor(rawPts.length * progress);
-      ctx.beginPath();
-      ctx.moveTo(rawPts[0][0], rawPts[0][1]);
-      for (let i = 1; i <= endIdx && i < rawPts.length; i++) {
-        ctx.lineTo(rawPts[i][0], rawPts[i][1]);
-      }
-      ctx.strokeStyle = '#ec4899';
-      ctx.lineWidth   = 3.5;
-      ctx.shadowColor = 'rgba(236,72,153,0.6)';
-      ctx.shadowBlur  = 8;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Moving ball head
-      if (endIdx > 0 && endIdx < rawPts.length) {
-        ctx.beginPath();
-        ctx.arc(rawPts[endIdx][0], rawPts[endIdx][1], 5, 0, Math.PI*2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-      }
-    } else {
-      // Fallback: draw Bezier from top of frame to pitch point to impact
-      const startX = canvas.width  * 0.5;
-      const startY = canvas.height * 0.15;
-      const t = progress;
-      const pts = getBezierProgress(startX, startY, pitchX, pitchY, impX, impY, t);
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      for (let i = 0; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.strokeStyle = '#ec4899';
-      ctx.lineWidth   = 3.5;
-      ctx.shadowColor = 'rgba(236,72,153,0.6)';
-      ctx.shadowBlur  = 8;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+import os
+import cv2
+import numpy as np
+from flask import Flask, render_template, request, jsonify, url_for
+from werkzeug.utils import secure_filename
+import uuid
+
+app = Flask(__name__, template_folder='templates', static_folder='static')
+
+UPLOAD_FOLDER = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ADVANCED HSV BALL TRACKER WITH DISTANCE FILTERING
+# ─────────────────────────────────────────────────────────────────────────────
+def detect_ball_trajectory(video_path):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    ball_positions = []
+    frame_idx = 0
+    prev_cx, prev_cy = None, None
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame_idx += 1
+
+        # Pitch Zone Crop to eliminate crowd and scoreboards
+        y1, y2 = int(height * 0.20), int(height * 0.85)
+        x1, x2 = int(width * 0.35), int(width * 0.65)
+        roi = frame[y1:y2, x1:x2]
+
+        # Convert to HSV to track light colored cricket ball under ground illumination
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        
+        # Color mask optimized for white/light cricket ball tracking bounds
+        lower_white = np.array([0, 0, 180])
+        upper_white = np.array([180, 45, 255])
+        mask = cv2.inRange(hsv, lower_white, upper_white)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        best_candidate = None
+        min_distance = float('inf')
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < 4 or area > 180:  # Rigid bounds for actual ball size
+                continue
+
+            M = cv2.moments(cnt)
+            if M['m00'] == 0:
+                continue
+
+            cx = int(M['m10'] / M['m00']) + x1
+            cy = int(M['m01'] / M['m00']) + y1
+
+            # Outlier Elimination: Ball can't radically warp positions across single frames
+            if prev_cx is not None and prev_cy is not None:
+                dist = np.sqrt((cx - prev_cx)**2 + (cy - prev_cy)**2)
+                if dist > 60:  # Jump validation threshold metric
+                    continue
+                if dist < min_distance:
+                    min_distance = dist
+                    best_candidate = (cx, cy)
+            else:
+                if best_candidate is None or area > best_candidate[2]:
+                    best_candidate = (cx, cy, area)
+
+        if best_candidate:
+            cx, cy = best_candidate[0], best_candidate[1]
+            ball_positions.append((frame_idx, cx, cy))
+            prev_cx, prev_cy = cx, cy
+
+    cap.release()
+    return ball_positions, fps, width, height, total_frames
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MATHEMATICAL POLYNOMIAL TRAJECTORY CURVE FITTING
+# ─────────────────────────────────────────────────────────────────────────────
+def analyse_trajectory(ball_positions, fps, width, height, batsman_hand):
+    # Minimum points safeguard check
+    if len(ball_positions) < 5:
+        return build_fallback(width, height, batsman_hand)
+
+    # Separate tracking axes arrays
+    frames = [p[0] for p in ball_positions]
+    xs = np.array([p[1] for p in ball_positions], dtype=float)
+    ys = np.array([p[2] for p in ball_positions], dtype=float)
+
+    # 1. Automatic Dynamic Bounce Check
+    # Scan vectors where the downward vertical index path flips direction cleanly
+    bounce_idx = 1
+    max_y_val = -1
+    for i in range(1, len(ys) - 1):
+        if ys[i] > max_y_val:
+            max_y_val = ys[i]
+            bounce_idx = i
+
+    # 2. Dynamic Pad Impact Isolation
+    impact_idx = len(ys) - 1
+    # Check sharp deceleration vectors after the pitch bounce framework
+    for i in range(bounce_idx + 1, len(ys) - 1):
+        dy_prev = ys[i] - ys[i-1]
+        dy_next = ys[i+1] - ys[i]
+        if dy_next < dy_prev * 0.3:  # Structural deceleration break trigger
+            impact_idx = i
+            break
+
+    pitch_pt = (xs[bounce_idx], ys[bounce_idx])
+    impact_pt = (xs[impact_idx], ys[impact_idx])
+
+    # 3. Quadratic Curve Fitting Equation Modeling (x = ay^2 + by + c)
+    # Fit only on the valid pre-impact ball coordinate vectors
+    valid_y = ys[:impact_idx+1]
+    valid_x = xs[:impact_idx+1]
+    
+    curve_coefficients = np.polyfit(valid_y, valid_x, 2)
+
+    # 4. Extrapolate Smooth Continuous Path Points Array
+    stump_top_y = height * 0.44
+    stump_bot_y = height * 0.56
+    
+    # Generate smooth fitted trail coordinate lists
+    smooth_trail_points = []
+    start_y_val = int(ys[0])
+    end_y_val = int(ys[impact_idx])
+    
+    # Path A: Flight path tracking interpolation
+    for current_y in range(start_y_val, end_y_val + 1, 2):
+        calc_x = int(np.polyval(curve_coefficients, current_y))
+        smooth_trail_points.append((calc_x, current_y))
+
+    # Path B: Predictive Extension Line directly into Wickets Zone Matrix
+    predicted_points = []
+    for proj_y in range(end_y_val, int(stump_top_y) - 1, -2):
+        calc_x = int(np.polyval(curve_coefficients, proj_y))
+        predicted_points.append((calc_x, proj_y))
+
+    final_projected_x = int(np.polyval(curve_coefficients, stump_top_y))
+
+    # 5. ICC DRS Threshold Layout Metrics
+    stump_cx = width * 0.50
+    half_stump_width = width * 0.033
+    stump_left = stump_cx - half_stump_width
+    stump_right = stump_cx + half_stump_width
+    uc_margin = width * 0.016
+
+    if batsman_hand == 'Left':
+        stump_left, stump_right = stump_right, stump_left
+
+    margin_gate = (stump_right - stump_left) // 4
+    if stump_left + margin_gate <= final_projected_x <= stump_right - margin_gate:
+        wickets_v, verdict = "HITTING", "OUT"
+    elif (stump_left <= final_projected_x < stump_left + margin_gate) or \
+         (stump_right - margin_gate < final_projected_x <= stump_right):
+        wickets_v, verdict = "UMPIRE'S CALL", "UMPIRE'S CALL"
+    else:
+        wickets_v, verdict = "MISSING", "NOT OUT"
+
+    return {
+        'pitch_x': float(pitch_pt[0]), 'pitch_y': float(pitch_pt[1]),
+        'impact_x': float(impact_pt[0]), 'impact_y': float(impact_pt[1]),
+        'proj_x': float(final_projected_x), 'proj_y': float(stump_top_y),
+        'stump_cx': float(stump_cx), 'stump_left': float(stump_left), 'stump_right': float(stump_right),
+        'uc_margin': float(uc_margin), 'stump_top_y': float(stump_top_y), 'stump_bot_y': float(stump_bot_y),
+        'bounce_time': round(frames[bounce_idx] / fps, 3), 'impact_time': round(frames[impact_idx] / fps, 3),
+        'width': width, 'height': height, 'ball_count': len(ball_positions),
+        'smooth_trail': smooth_trail_points, 'predicted_trail': predicted_points
     }
 
-    progress += 0.03;
-    if (progress < 1) {
-      animFrame = requestAnimationFrame(drawPhase0);
-    } else {
-      progress = 0;
-      phase = 1;
-      animFrame = requestAnimationFrame(drawPhase1);
-    }
-  }
-
-  function drawPhase1() {
-    // Projection line from impact to stumps (dashed, with animated head)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStumps();
-
-    // Re-draw full flight path
-    if (rawPts.length >= 2) {
-      ctx.beginPath();
-      ctx.moveTo(rawPts[0][0], rawPts[0][1]);
-      rawPts.forEach(p => ctx.lineTo(p[0], p[1]));
-      ctx.strokeStyle = '#ec4899';
-      ctx.lineWidth   = 3.5;
-      ctx.shadowColor = 'rgba(236,72,153,0.6)';
-      ctx.shadowBlur  = 8;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+def build_fallback(width, height, batsman_hand):
+    stump_cx = width * 0.50
+    half_w = width * 0.033
+    return {
+        'pitch_x': width * 0.51, 'pitch_y': height * 0.65,
+        'impact_x': width * 0.50, 'impact_y': height * 0.53,
+        'proj_x': width * 0.49, 'proj_y': height * 0.44,
+        'stump_cx': stump_cx, 'stump_left': stump_cx - half_w, 'stump_right': stump_cx + half_w,
+        'uc_margin': width * 0.016, 'stump_top_y': height * 0.44, 'stump_bot_y': height * 0.56,
+        'bounce_time': 0.5, 'impact_time': 1.1, 'width': width, 'height': height, 'ball_count': 0,
+        'smooth_trail': [], 'predicted_trail': []
     }
 
-    // Impact dot
-    ctx.beginPath();
-    ctx.arc(impX, impY, 7, 0, Math.PI*2);
-    ctx.fillStyle = '#ec4899';
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+def lbw_verdict(traj, batsman_hand, playing_shot):
+    # This remains linked cleanly to keep validation structural components safe
+    px, sl, sr, uc = traj['proj_x'], traj['stump_left'], traj['stump_right'], traj['uc_margin']
+    pit_x, imp_x, imp_y = traj['pitch_x'], traj['impact_x'], traj['impact_y']
+    st_top = traj['stump_top_y']
 
-    // Projection line (dashed, animated)
-    const curX = impX + (projX - impX) * progress;
-    const curY = impY + (projY - impY) * progress;
-    ctx.beginPath();
-    ctx.moveTo(impX, impY);
-    ctx.lineTo(curX, curY);
-    ctx.strokeStyle = '#ec4899';
-    ctx.lineWidth   = 3;
-    ctx.setLineDash([6, 5]);
-    ctx.shadowColor = 'rgba(236,72,153,0.5)';
-    ctx.shadowBlur  = 6;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.shadowBlur = 0;
+    if batsman_hand == 'Right':
+        outside_leg = pit_x < sl - uc
+        outside_off_impact = imp_x > sr + uc
+    else:
+        outside_leg = pit_x > sr + uc
+        outside_off_impact = imp_x < sl - uc
 
-    // Animated ball head
-    ctx.beginPath();
-    ctx.arc(curX, curY, 5, 0, Math.PI*2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+    if outside_leg:
+        return {'pitching': 'OUTSIDE LEG', 'impact': 'N/A', 'wickets': 'N/A', 'verdict': 'NOT OUT'}
+    if imp_y < st_top - 12:
+        return {'pitching': 'IN LINE', 'impact': 'IN LINE', 'wickets': 'OVER STUMPS', 'verdict': 'NOT OUT'}
+    if outside_off_impact and playing_shot:
+        return {'pitching': 'IN LINE', 'impact': 'OUTSIDE OFF', 'wickets': 'N/A', 'verdict': 'NOT OUT'}
 
-    progress += 0.025;
-    if (progress < 1) {
-      animFrame = requestAnimationFrame(drawPhase1);
-    } else {
-      // Draw stump hit indicator
-      drawStumpHit(data, scaleX, scaleY, stumpL, stumpR, stumpTY, stumpBY, projX, projY);
-      if (onDone) onDone();
+    return {'pitching': 'IN LINE', 'impact': 'IN LINE', 'wickets': traj['smooth_trail'] and "HITTING" or "MISSING", 'verdict': px > sl and px < sr and "OUT" or "NOT OUT"}
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video provided'}), 400
+    file = request.files['video']
+    if file.filename == '':
+        return jsonify({'error': 'No selection'}), 400
+
+    batsman_hand = request.form.get('batsman_hand', 'Right')
+    playing_shot = request.form.get('playing_shot', 'yes') == 'yes'
+
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower()
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+
+    result = detect_ball_trajectory(filepath)
+    if result is None:
+        return jsonify({'error': 'Read error'}), 500
+
+    ball_positions, fps, width, height, total_frames = result
+    traj = analyse_trajectory(ball_positions, fps, width, height, batsman_hand)
+    
+    # Sync structural decision metrics override directly based on calculated outcomes
+    verdict_data = {
+        'pitching': traj['pitch_x'] < traj['stump_left'] and "OUTSIDE OFF" or "IN LINE",
+        'impact': traj['impact_x'] < traj['stump_left'] and "OUTSIDE" or "IN LINE",
+        'wickets': traj['smooth_trail'] and "HITTING" or "MISSING",
+        'verdict': traj['proj_x'] > traj['stump_left'] and traj['proj_x'] < traj['stump_right'] and "OUT" or "NOT OUT"
     }
-  }
 
-  animFrame = requestAnimationFrame(drawPhase0);
-}
+    if traj['proj_x'] >= traj['stump_left'] and traj['proj_x'] <= traj['stump_left'] + traj['uc_margin']:
+        verdict_data['wickets'] = "UMPIRE'S CALL"
+        verdict_data['verdict'] = "UMPIRE'S CALL"
 
-function drawStumpHit(data, sx, sy, stumpL, stumpR, stumpTY, stumpBY, projX, projY) {
-  const verdict = data.telemetry.verdict;
-  let col = verdict === 'OUT' ? '#ef4444' : verdict === 'NOT OUT' ? '#22c55e' : '#f59e0b';
+    return jsonify({
+        'success': True, 'video_url': url_for('static', filename=f'uploads/{filename}'),
+        'bounce_time': traj['bounce_time'], 'impact_time': traj['impact_time'],
+        'pitch_x': traj['pitch_x'], 'pitch_y': traj['pitch_y'],
+        'impact_x': traj['impact_x'], 'impact_y': traj['impact_y'],
+        'proj_x': traj['proj_x'], 'proj_y': traj['proj_y'],
+        'stump_left': traj['stump_left'], 'stump_right': traj['stump_right'],
+        'stump_top_y': traj['stump_top_y'], 'stump_bot_y': traj['stump_bot_y'],
+        'stump_cx': traj['stump_cx'], 'vid_width': width, 'vid_height': height,
+        'smooth_trail': traj['smooth_trail'], 'predicted_trail': traj['predicted_trail'],
+        'ball_count': traj['ball_count'], 'telemetry': verdict_data
+    })
 
-  // Stump highlight where ball would hit
-  ctx.fillStyle = col + '55';
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 3;
-
-  if (projX >= stumpL - 4 && projX <= stumpR + 4) {
-    ctx.fillRect(stumpL - 2, stumpTY, stumpR - stumpL + 4, stumpBY - stumpTY);
-  }
-
-  // Projection endpoint dot
-  ctx.beginPath();
-  ctx.arc(projX, projY, 8, 0, Math.PI*2);
-  ctx.fillStyle = col;
-  ctx.fill();
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
-function getBezierProgress(x0,y0,cx,cy,x1,y1, t) {
-  const pts = [];
-  const steps = 40;
-  for (let i = 0; i <= Math.floor(steps * t); i++) {
-    const tt = i / steps;
-    const bx = (1-tt)*(1-tt)*x0 + 2*(1-tt)*tt*cx + tt*tt*x1;
-    const by = (1-tt)*(1-tt)*y0 + 2*(1-tt)*tt*cy + tt*tt*y1;
-    pts.push([bx, by]);
-  }
-  return pts;
-}
-
-// ── Verdict flash ──────────────────────────────────────────────
-function showVerdictFlash(verdict) {
-  const col = verdict === 'OUT' ? '#ef4444' : verdict === 'NOT OUT' ? '#22c55e' : '#f59e0b';
-  const bg  = verdict === 'OUT' ? 'rgba(127,29,29,0.9)' : verdict === 'NOT OUT' ? 'rgba(20,83,45,0.9)' : 'rgba(120,53,15,0.9)';
-  const brd = verdict === 'OUT' ? 'rgba(239,68,68,0.4)' : verdict === 'NOT OUT' ? 'rgba(34,197,94,0.4)' : 'rgba(245,158,11,0.4)';
-  const box = document.getElementById('vfBox');
-  box.textContent = verdict;
-  box.style.background    = bg;
-  box.style.color         = col;
-  box.style.borderColor   = brd;
-  document.getElementById('vfSub').textContent = verdict === "UMPIRE'S CALL" ? 'ON-FIELD DECISION STANDS' : 'HAWKEYE TRACKING';
-  document.getElementById('verdictFlash').classList.add('show');
-  setTimeout(() => document.getElementById('verdictFlash').classList.remove('show'), 4500);
-}
-
-// ── HUD helpers ────────────────────────────────────────────────
-function hudColour(v) {
-  if (!v || v === 'N/A') return '';
-  v = v.toUpperCase();
-  if (v.includes('MISSING') || v.includes('OUTSIDE') || v.includes('OVER')) return 'green';
-  if (v.includes("UMPIRE") || v.includes('CALL'))  return 'amber';
-  return 'red';  // HITTING / IN LINE = out-risk → red
-}
-
-function verdictColour(v) {
-  if (v === 'OUT') return 'red';
-  if (v === 'NOT OUT') return 'green';
-  return 'amber';
-}
-
-function setHudRow(rowId, valId, text, colour) {
-  document.getElementById(valId).textContent = text || '—';
-  document.getElementById(valId).className   = 'hud-value ' + colour;
-}
-
-function hideHUD() {
-  document.getElementById('broadcastHUD').classList.remove('visible');
-  document.getElementById('decisionCard').classList.remove('visible');
-  ['hudWickets','hudImpact','hudPitching'].forEach(id => document.getElementById(id).classList.remove('show'));
-  document.getElementById('verdictFlash').classList.remove('show');
-  document.getElementById('drsBanner').classList.remove('show');
-}
-
-// ── Right panel update ─────────────────────────────────────────
-function updateRightPanel(data) {
-  const tel = data.telemetry;
-  const verdict = tel.verdict;
-  const col = verdict === 'OUT' ? 'red' : verdict === 'NOT OUT' ? 'green' : 'amber';
-  const textCol = verdict === 'OUT' ? '#f87171' : verdict === 'NOT OUT' ? '#4ade80' : '#fb923c';
-
-  // Verdict hero
-  document.getElementById('verdictHero').innerHTML = `
-    <div class="bf" style="font-size:36px;letter-spacing:4px;color:${textCol};">${verdict}</div>
-    <div style="font-size:11px;color:#475569;margin-top:4px;letter-spacing:1px;">Hawkeye Detection · ${data.ball_count} ball frames</div>
-  `;
-
-  // Check cards
-  document.getElementById('checkCards').innerHTML = ['wickets','impact','pitching'].map(k => {
-    const v   = tel[k];
-    const cls = hudColour(v) || 'red';
-    return `<div class="rcard" style="margin-bottom:6px;">
-      <div class="rcard-header">${k.toUpperCase()}</div>
-      <div class="rcard-value ${cls}">${v}</div>
-    </div>`;
-  }).join('');
-
-  // Detection info
-  document.getElementById('detectionInfo').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#475569;">
-      <div>Ball frames detected: <span style="color:#94a3b8;">${data.ball_count}</span></div>
-      <div>Bounce detected at: <span style="color:#38bdf8;">${data.bounce_time}s</span></div>
-      <div>Impact detected at: <span style="color:#ec4899;">${data.impact_time}s</span></div>
-      <div>Video: <span style="color:#94a3b8;">${data.vid_width}×${data.vid_height}</span></div>
-    </div>
-  `;
-}
-
-// ── History ───────────────────────────────────────────────────
-function addHistory(data) {
-  history.unshift({ verdict: data.telemetry.verdict, ts: new Date().toLocaleTimeString() });
-  const el = document.getElementById('historyList');
-  el.innerHTML = history.slice(0, 10).map(h => {
-    const cls = h.verdict === 'OUT' ? 'out' : h.verdict === 'NOT OUT' ? 'notout' : 'uc';
-    const lbl = h.verdict === 'NOT OUT' ? 'NOT OUT' : h.verdict === "UMPIRE'S CALL" ? 'UC' : h.verdict;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0d1117;border:1px solid rgba(255,255,255,0.05);border-radius:6px;">
-      <span class="hist-badge ${cls}">${lbl}</span>
-      <span style="font-size:11px;color:#475569;">${h.ts}</span>
-    </div>`;
-  }).join('');
-}
-
-// ── Timeline markers ──────────────────────────────────────────
-function setupTimeline(data) {
-  if (!video.duration) return;
-  const bPct = (data.bounce_time / video.duration * 100) + '%';
-  const iPct = (data.impact_time / video.duration * 100) + '%';
-  const bm = document.getElementById('markerBounce');
-  const im = document.getElementById('markerImpact');
-  bm.style.left = bPct; bm.style.display = 'block';
-  im.style.left = iPct; im.style.display = 'block';
-}
-
-// ── Redraw overlay (on resize) ────────────────────────────────
-function redrawOverlay() {
-  if (currentData) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Simple static redraw of final state
-    const d = currentData;
-    const scaleX = canvas.width  / d.vid_width;
-    const scaleY = canvas.height / d.vid_height;
-    const stumpL  = d.stump_left  * scaleX;
-    const stumpR  = d.stump_right * scaleX;
-    const stumpTY = d.stump_top_y * scaleY;
-    const stumpBY = d.stump_bot_y * scaleY;
-    const impX = d.impact_x * scaleX, impY = d.impact_y * scaleY;
-    const projX = d.proj_x * scaleX, projY = d.proj_y * scaleY;
-    const verdict = d.telemetry.verdict;
-    const col = verdict === 'OUT' ? '#ef4444' : verdict === 'NOT OUT' ? '#22c55e' : '#f59e0b';
-    // Stumps
-    ctx.globalAlpha = 0.4;
-    [stumpL, (stumpL+stumpR)/2, stumpR].forEach(sx => {
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(sx, stumpTY); ctx.lineTo(sx, stumpBY); ctx.stroke();
-    });
-    ctx.globalAlpha = 1;
-    // Impact to projection
-    ctx.strokeStyle = '#ec4899'; ctx.lineWidth = 3; ctx.setLineDash([6,5]);
-    ctx.beginPath(); ctx.moveTo(impX, impY); ctx.lineTo(projX, projY); ctx.stroke();
-    ctx.setLineDash([]);
-    // Projection dot
-    ctx.beginPath(); ctx.arc(projX, projY, 7, 0, Math.PI*2);
-    ctx.fillStyle = col; ctx.fill();
-  }
-}
-
-// ── Util ──────────────────────────────────────────────────────
-function setLoading(on, msg) {
-  const row = document.getElementById('loadingRow');
-  const sp  = document.getElementById('spinner');
-  const txt = document.getElementById('loadingTxt');
-  if (on) {
-    row.style.display = 'flex'; sp.style.display = 'block'; txt.textContent = msg || '';
-  } else {
-    row.style.display = 'none'; sp.style.display = 'none';
-  }
-}
-function setStatus(msg) {
-  document.getElementById('statusTxt').textContent = msg;
-}
-</script>
-</body>
-</html>
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
