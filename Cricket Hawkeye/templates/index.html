@@ -1,458 +1,136 @@
 <!DOCTYPE html>
 <html>
 <head>
-
-<title>AI LBW Analyzer</title>
-
-<style>
-
-body{
-    margin:0;
-    font-family:Arial, sans-serif;
-    background:#0f172a;
-    color:white;
-}
-
-
-.container{
-
-    width:90%;
-    max-width:1000px;
-    margin:40px auto;
-    text-align:center;
-
-}
-
-
-.card{
-
-    background:#1e293b;
-    padding:25px;
-    border-radius:15px;
-    margin-top:20px;
-
-}
-
-
-input,select,button{
-
-    padding:12px;
-    margin:10px;
-    border-radius:8px;
-    border:none;
-
-}
-
-
-button{
-
-    background:#22c55e;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-
-}
-
-
-button:hover{
-
-    background:#16a34a;
-
-}
-
-
-video{
-
-    width:80%;
-    border-radius:12px;
-    margin-top:20px;
-
-}
-
-
-canvas{
-
-    position:absolute;
-    left:50%;
-    transform:translateX(-50%);
-    pointer-events:none;
-
-}
-
-
-.video-box{
-
-    position:relative;
-    display:inline-block;
-
-}
-
-
-.result{
-
-    display:none;
-    background:#020617;
-    padding:20px;
-    border-radius:15px;
-
-}
-
-
-.out{
-
-    color:#22c55e;
-    font-size:30px;
-    font-weight:bold;
-
-}
-
-
-.notout{
-
-    color:#ef4444;
-    font-size:30px;
-    font-weight:bold;
-
-}
-
-
-</style>
-
+    <title>AI LBW Analyzer</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; }
+        .container { width: 90%; max-width: 1000px; margin: 40px auto; text-align: center; }
+        .card { background: #1e293b; padding: 25px; border-radius: 15px; margin-top: 20px; }
+        input, select, button { padding: 12px; margin: 10px; border-radius: 8px; border: none; }
+        .loading-text { color: #f59e0b; font-size: 18px; display: none; font-weight: bold; }
+        video { width: 80%; border-radius: 12px; margin-top: 20px; }
+        canvas { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; }
+        .video-box { position: relative; display: inline-block; margin-top: 20px; }
+        .result { display: none; background: #020617; padding: 20px; border-radius: 15px; }
+        .out { color: #22c55e; font-size: 30px; font-weight: bold; }
+        .notout { color: #ef4444; font-size: 30px; font-weight: bold; }
+    </style>
 </head>
-
-
 <body>
 
-
 <div class="container">
+    <h1>🏏 AI Hawk-Eye LBW Analyzer</h1>
 
+    <div class="card">
+        <input type="file" id="videoInput" accept="video/*">
+        <br>
+        <select id="hand">
+            <option value="Right">Right Hand Batsman</option>
+            <option value="Left">Left Hand Batsman</option>
+        </select>
+        <div id="loadingStatus" class="loading-text">🔄 Processing Video... Please Wait...</div>
+    </div>
 
-<h1>🏏 AI Hawk-Eye LBW Analyzer</h1>
+    <div class="card result" id="result">
+        <h2>Decision</h2>
+        <div id="decision"></div>
+        <p id="pitching"></p>
+        <p id="impact"></p>
+        <p id="wicket"></p>
+    </div>
 
-
-<div class="card">
-
-
-<input 
-type="file"
-id="videoInput"
-accept="video/*">
-
-
-<br>
-
-
-<select id="hand">
-
-<option value="Right">
-Right Hand Batsman
-</option>
-
-<option value="Left">
-Left Hand Batsman
-</option>
-
-</select>
-
-
-<br>
-
-
-<button onclick="analyze()">
-
-Analyze LBW
-
-</button>
-
-
+    <div class="video-box">
+        <video id="video" controls></video>
+        <canvas id="canvas"></canvas>
+    </div>
 </div>
-
-
-
-<div class="card result" id="result">
-
-
-<h2>Decision</h2>
-
-
-<div id="decision"></div>
-
-
-<p id="pitching"></p>
-
-<p id="impact"></p>
-
-<p id="wicket"></p>
-
-
-</div>
-
-
-
-
-<div class="video-box">
-
-
-<video 
-id="video"
-controls>
-
-</video>
-
-
-<canvas id="canvas"></canvas>
-
-
-</div>
-
-
-
-</div>
-
-
-
-
 
 <script>
-
-
-async function analyze(){
-
-
-let file=document
-.getElementById("videoInput")
-.files[0];
-
-
-if(!file){
-
-alert("Upload video first");
-
-return;
-
-}
-
-
-
-let form=new FormData();
-
-
-form.append(
-"video",
-file
-);
-
-
-
-let response=await fetch(
-"/analyze",
-{
-method:"POST",
-body:form
-}
-);
-
-
-
-let data=await response.json();
-
-
-
-if(!data.success){
-
-alert("Error");
-
-return;
-
-}
-
-
-
-let video=document
-.getElementById("video");
-
-
-video.src=data.video;
-
-
-
-let result=data.analysis;
-
-
-
-document
-.getElementById("result")
-.style.display="block";
-
-
-
-let decision=document
-.getElementById("decision");
-
-
-
-decision.innerHTML=result.decision;
-
-
-
-if(result.decision=="OUT"){
-
-decision.className="out";
-
-}
-
-else{
-
-decision.className="notout";
-
-}
-
-
-
-document
-.getElementById("pitching")
-.innerHTML=
-"Pitching : "+
-result.pitching;
-
-
-
-document
-.getElementById("impact")
-.innerHTML=
-"Impact : "+
-result.impact;
-
-
-
-document
-.getElementById("wicket")
-.innerHTML=
-"Wickets : "+
-result.wicket;
-
-
-
-video.onloadedmetadata=function(){
-
-
-drawTrajectory(
-data.ball_points,
-video
-);
-
-
-}
-
-
-}
-
-
-
-
-
-function drawTrajectory(points,video){
-
-
-let canvas=document
-.getElementById("canvas");
-
-
-let ctx=canvas.getContext("2d");
-
-
-
-canvas.width=
-video.videoWidth;
-
-
-canvas.height=
-video.videoHeight;
-
-
-
-canvas.style.width=
-video.offsetWidth+"px";
-
-
-canvas.style.height=
-video.offsetHeight+"px";
-
-
-
-ctx.lineWidth=5;
-
-
-ctx.strokeStyle="lime";
-
-
-ctx.beginPath();
-
-
-
-points.forEach(
-(p,index)=>{
-
-
-if(index==0){
-
-ctx.moveTo(
-p.x,
-p.y
-);
-
-}
-
-else{
-
-
-ctx.lineTo(
-p.x,
-p.y
-);
-
-
-}
-
-
-});
-
-
-ctx.stroke();
-
-
-
-points.forEach(
-p=>{
-
-
-ctx.beginPath();
-
-ctx.arc(
-p.x,
-p.y,
-5,
-0,
-Math.PI*2
-);
-
-
-ctx.fillStyle="red";
-
-ctx.fill();
-
-
-
-});
-
-
-}
-
-
-
+    // AUTOMATIC DETECT ON UPLOAD FUNCTION
+    document.getElementById("videoInput").addEventListener("change", function() {
+        if(this.files.length > 0) {
+            analyzeVideo(this.files[0]);
+        }
+    });
+
+    async function analyzeVideo(file) {
+        let loadingStatus = document.getElementById("loadingStatus");
+        loadingStatus.style.display = "block"; // Loader Show
+        
+        let form = new FormData();
+        form.append("video", file);
+
+        try {
+            let response = await fetch("/analyze", {
+                method: "POST",
+                body: form
+            });
+            let data = await response.json();
+
+            loadingStatus.style.display = "none"; // Loader Hide
+
+            if (!data.success) {
+                alert("Analysis failed. Please try another video.");
+                return;
+            }
+
+            let video = document.getElementById("video");
+            video.src = data.video;
+
+            let result = data.analysis;
+            document.getElementById("result").style.display = "block";
+
+            let decision = document.getElementById("decision");
+            decision.innerHTML = result.decision;
+            decision.className = (result.decision == "OUT") ? "out" : "notout";
+
+            document.getElementById("pitching").innerHTML = "Pitching : " + result.pitching;
+            document.getElementById("impact").innerHTML = "Impact : " + result.impact;
+            document.getElementById("wicket").innerHTML = "Wickets : " + result.wicket;
+
+            video.onloadedmetadata = function() {
+                drawTrajectory(data.ball_points, video);
+            }
+        } catch (error) {
+            loadingStatus.style.display = "none";
+            alert("Error connecting to processing engine.");
+        }
+    }
+
+    function drawTrajectory(points, video) {
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext("2d");
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.style.width = video.offsetWidth + "px";
+        canvas.style.height = video.offsetHeight + "px";
+
+        if(points.length === 0) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#22c55e"; // Professional Lime Green Line
+        ctx.beginPath();
+
+        points.forEach((p, index) => {
+            if (index == 0) {
+                ctx.moveTo(p.x, p.y);
+            } else {
+                ctx.lineTo(p.x, p.y);
+            }
+        });
+        ctx.stroke();
+
+        // Dots on points
+        points.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "#ef4444"; // Red tracked dots
+            ctx.fill();
+        });
+    }
 </script>
 
-
 </body>
-
 </html>
