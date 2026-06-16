@@ -8,14 +8,12 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 UPLOAD_FOLDER = "static/uploads"
-OUTPUT_FOLDER = "static/outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# ===============================
-# ROBUST BALL TRACKING ENGINE
-# ===============================
+# ==========================================
+# PROFESSIONAL BALL TRACKING ENGINE (HSV)
+# ==========================================
 def detect_ball(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -25,9 +23,6 @@ def detect_ball(video_path):
     frame_number = 0
     last_point = None
 
-    # MOG2 background segmenter for moving objects
-    backSub = cv2.createBackgroundSubtractorMOG2(history=15, varThreshold=30, detectShadows=False)
-
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -35,81 +30,64 @@ def detect_ball(video_path):
 
         frame_number += 1
         
-        # Isolate movement
-        fg_mask = backSub.apply(frame)
+        # 1. BGR se HSV mein convert karein (Color isolation ke liye)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        # Clean background noise using structural elements
+        # 2. Cricket Ball ka color range (Standard broadcast mein white/light ball ke liye filter)
+        # Yeh range sirf bright/moving cricket ball ko focus karegi
+        lower_ball = np.array([0, 0, 200])
+        upper_ball = np.array([180, 50, 255])
+        
+        mask = cv2.inRange(hsv, lower_ball, upper_ball)
+        
+        # Noise saaf karne ke liye morphological operations
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        fg_mask = cv2.dilate(fg_mask, kernel, iterations=1)
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=1)
 
-        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        valid_candidates = []
+        best_candidate = None
+        min_dist = float('inf')
 
         for c in contours:
             area = cv2.contourArea(c)
-            # Size filters for standard cricket broadcast ball
-            if area < 4 or area > 200:
+            # Ball ka size screen par bohot chota (4px se 80px) hota hai
+            if area < 3 or area > 80:
                 continue
 
             x, y, w, h = cv2.boundingRect(c)
-            ratio = w / h if h else 0
-            if ratio < 0.4 or ratio > 2.2:
+            
+            # Ball hamesha round ya thodi oval hoti hai (Aspect Ratio Filter)
+            aspect_ratio = float(w)/h
+            if aspect_ratio < 0.6 or aspect_ratio > 1.6:
                 continue
 
             cx = x + w // 2
             cy = y + h // 2
-            
-            valid_candidates.append((cx, cy, area))
 
-        # Tracking match logic
-        best = None
-        if valid_candidates:
-            if last_point is None:
-                # Agar pehla point hai to sabse relevant mass center select karein
-                # Broadcasters videos mein upper half se ball release hoti hai
-                valid_candidates.sort(key=lambda k: k[1]) 
-                best = (valid_candidates[0][0], valid_candidates[0][1])
+            # STRICT CONTINUITY FILTER: 
+            # Ball achanak lambi chalang nahi maar sakti. Ek frame se dusre frame ka distance bohot kam hona chahiye.
+            if last_point is not None:
+                dist = np.sqrt((cx - last_point[0])**2 + (cy - last_point[1])**2)
+                if dist < min_dist and dist < 35:  # Strict 35px threshold max movement per frame
+                    min_dist = dist
+                    best_candidate = (cx, cy)
             else:
-                # Pick the nearest neighbor to preserve sequential continuity
-                min_dist = float('inf')
-                for cx, cy, area in valid_candidates:
-                    dist = np.sqrt((cx - last_point[0])**2 + (cy - last_point[1])**2)
-                    # Ball movement frame-by-frame normal screen size par 75px se zyada jump nahi karti
-                    if dist < min_dist and dist < 75:
-                        min_dist = dist
-                        best = (cx, cy)
+                # Pehle frame mein ball hamesha upper half (pitch ke top area) se release hoti hai
+                if cy < frame.shape[0] * 0.5:
+                    best_candidate = (cx, cy)
 
-        if best:
-            positions.append({"frame": frame_number, "x": best[0], "y": best[1]})
-            last_point = best
+        if best_candidate:
+            positions.append({"frame": frame_number, "x": best_candidate[0], "y": best_candidate[1]})
+            last_point = best_candidate
 
     cap.release()
-
-    # --- NO-INVERSION SMOOTHING FILTER (Moving Average) ---
-    if len(positions) > 3:
-        smoothed = []
-        window_size = 3
-        for i in range(len(positions)):
-            start_idx = max(0, i - window_size // 2)
-            end_idx = min(len(positions), i + window_size // 2 + 1)
-            
-            window_points = positions[start_idx:end_idx]
-            avg_x = int(np.mean([p["x"] for p in window_points]))
-            avg_y = int(np.mean([p["y"] for p in window_points]))
-            
-            smoothed.append({
-                "frame": positions[i]["frame"],
-                "x": avg_x,
-                "y": avg_y
-            })
-        return smoothed
-
     return positions
 
-# ===============================
-# TRAJECTORY ANALYSIS ENGINE
-# ===============================
+# ==========================================
+# LINEAR PREDICTION & ANALYSIS
+# ==========================================
 def calculate_path(points, width, height):
     if len(points) < 4:
         return {
@@ -119,25 +97,23 @@ def calculate_path(points, width, height):
     xs = np.array([p["x"] for p in points])
     ys = np.array([p["y"] for p in points])
 
-    # Dynamic Bounce Detection (Lowest point on screen is maximum Y coordinate)
+    # Bounce detection (Y-axis ka sabse niche wala max point)
     bounce_index = np.argmax(ys)
     pitch_x = float(xs[bounce_index])
     pitch_y = float(ys[bounce_index])
 
-    # Impact calculation slightly post-bounce
-    impact_index = min(bounce_index + 3, len(xs) - 1)
+    impact_index = min(bounce_index + 2, len(xs) - 1)
     impact_x = float(xs[impact_index])
     impact_y = float(ys[impact_index])
 
-    # Smooth parabolic projection for linear flow towards wickets
-    coeff = np.polyfit(ys, xs, 1) # Linear fitting prevents inverse wrapping artifacts
-    stump_y = height * 0.62  # Base/Middle alignment zone for stumps
+    # Linear regression baseline for straight trajectory path projection
+    coeff = np.polyfit(ys, xs, 1)
+    stump_y = height * 0.65  # Approximate stumps zone height
 
     projected_x = float(np.polyval(coeff, stump_y))
     
-    # Dynamic bounding box relative to camera center
-    stump_left = width * 0.465
-    stump_right = width * 0.535
+    stump_left = width * 0.47
+    stump_right = width * 0.53
 
     if stump_left <= projected_x <= stump_right:
         decision = "OUT"
@@ -187,4 +163,4 @@ def analyze():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=5000)
