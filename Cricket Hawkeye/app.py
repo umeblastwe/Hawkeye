@@ -3,7 +3,7 @@ import cv2
 import uuid
 import numpy as np
 
-from flask import Flask, render_template, request, jsonify, url_for
+from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 
 
@@ -24,93 +24,105 @@ os.makedirs(
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
+
 # =====================================================
-# BALL DETECTION ENGINE
-# Motion + HSV + Size Filtering
+# SERVE UPLOADED VIDEOS
+# =====================================================
+
+@app.route("/uploads/<filename>")
+def uploaded_file(filename):
+
+    return send_from_directory(
+        UPLOAD_FOLDER,
+        filename
+    )
+
+
+
+# =====================================================
+# BALL TRACKING
 # =====================================================
 
 def detect_ball(video_path):
 
     cap = cv2.VideoCapture(video_path)
 
+
     if not cap.isOpened():
+
         return []
 
 
-    points = []
+    points=[]
 
-    previous_frame = None
-    previous_point = None
+    previous_gray=None
+    previous_point=None
 
-    frame_id = 0
+    frame_id=0
+
 
 
     while True:
 
-        ret, frame = cap.read()
+
+        ret,frame=cap.read()
+
 
         if not ret:
             break
 
 
-        frame_id += 1
+        frame_id+=1
 
 
-        height, width = frame.shape[:2]
-
-
-        gray = cv2.cvtColor(
+        gray=cv2.cvtColor(
             frame,
             cv2.COLOR_BGR2GRAY
         )
 
 
-        blur = cv2.GaussianBlur(
+        gray=cv2.GaussianBlur(
             gray,
             (5,5),
             0
         )
 
 
-        candidates = []
 
-
-        # -----------------------------
-        # WHITE BALL MASK
-        # -----------------------------
-
-        hsv = cv2.cvtColor(
+        hsv=cv2.cvtColor(
             frame,
             cv2.COLOR_BGR2HSV
         )
 
 
-        lower = np.array(
-            [0,0,180]
+
+        # bright ball filter
+
+        lower=np.array(
+            [0,0,170]
         )
 
-        upper = np.array(
-            [180,70,255]
+        upper=np.array(
+            [180,80,255]
         )
 
 
-        mask = cv2.inRange(
+        mask=cv2.inRange(
             hsv,
             lower,
             upper
         )
 
 
-        # -----------------------------
-        # MOTION FILTER
-        # -----------------------------
 
-        if previous_frame is not None:
+        # motion filter
+
+        if previous_gray is not None:
 
 
-            diff = cv2.absdiff(
-                previous_frame,
-                blur
+            diff=cv2.absdiff(
+                previous_gray,
+                gray
             )
 
 
@@ -128,6 +140,7 @@ def detect_ball(video_path):
             )
 
 
+
         kernel=cv2.getStructuringElement(
             cv2.MORPH_ELLIPSE,
             (3,3)
@@ -141,11 +154,17 @@ def detect_ball(video_path):
         )
 
 
+
         contours,_=cv2.findContours(
             mask,
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
+
+
+        best=None
+        best_area=0
+
 
 
         for c in contours:
@@ -154,7 +173,7 @@ def detect_ball(video_path):
             area=cv2.contourArea(c)
 
 
-            if area < 4 or area > 120:
+            if area < 3 or area > 150:
                 continue
 
 
@@ -162,10 +181,11 @@ def detect_ball(video_path):
             x,y,w,h=cv2.boundingRect(c)
 
 
+
             ratio=w/h if h else 0
 
 
-            if ratio < 0.5 or ratio > 2:
+            if ratio <0.4 or ratio>2.5:
                 continue
 
 
@@ -174,8 +194,6 @@ def detect_ball(video_path):
             cy=y+h//2
 
 
-
-            # Remove impossible jumps
 
             if previous_point:
 
@@ -186,108 +204,98 @@ def detect_ball(video_path):
                 )
 
 
-                if distance > 120:
+                if distance>120:
                     continue
 
 
 
-            candidates.append(
-                (cx,cy,area)
-            )
+            if area>best_area:
+
+                best_area=area
+
+                best=(cx,cy)
 
 
 
-        if candidates:
+
+        if best:
 
 
-            # choose biggest valid moving object
+            points.append({
 
-            candidates.sort(
-                key=lambda x:x[2],
-                reverse=True
-            )
+                "frame":frame_id,
+                "x":best[0],
+                "y":best[1]
 
-
-            point=candidates[0]
+            })
 
 
-            points.append(
-                {
-                    "frame":frame_id,
-                    "x":point[0],
-                    "y":point[1]
-                }
-            )
+            previous_point=best
 
 
-            previous_point=(
-                point[0],
-                point[1]
-            )
 
-
-        previous_frame=blur
+        previous_gray=gray
 
 
 
     cap.release()
 
 
-    return smooth_points(points)
+    return remove_outliers(points)
+
 
 
 
 
 # =====================================================
-# REMOVE BAD POINTS
+# CLEAN WRONG POINTS
 # =====================================================
 
-def smooth_points(points):
+def remove_outliers(points):
 
 
     if len(points)<3:
+
         return points
 
 
-    cleaned=[]
 
-
-    last=None
-
-
-    for p in points:
-
-
-        if last:
-
-
-            d=np.sqrt(
-                (p["x"]-last["x"])**2+
-                (p["y"]-last["y"])**2
-            )
-
-
-            if d>150:
-                continue
-
-
-        cleaned.append(p)
-
-        last=p
+    clean=[points[0]]
 
 
 
-    return cleaned
+    for p in points[1:]:
+
+
+        last=clean[-1]
+
+
+        d=np.sqrt(
+
+            (p["x"]-last["x"])**2+
+            (p["y"]-last["y"])**2
+
+        )
+
+
+
+        if d<150:
+
+            clean.append(p)
+
+
+
+    return clean
 
 
 
 
 
 # =====================================================
-# TRAJECTORY + LBW ENGINE
+# LBW ANALYSIS
 # =====================================================
 
-def analyse_lbw(points,width,height):
+def analyse(points,width,height):
 
 
     if len(points)<5:
@@ -296,10 +304,12 @@ def analyse_lbw(points,width,height):
         return {
 
             "pitching":"UNKNOWN",
+
             "impact":"UNKNOWN",
+
             "wickets":"UNKNOWN",
-            "decision":"NOT OUT",
-            "points":points
+
+            "decision":"NOT OUT"
 
         }
 
@@ -318,44 +328,37 @@ def analyse_lbw(points,width,height):
 
 
 
-    # Bounce estimation
-
-    bounce_index=np.argmax(
+    bounce=np.argmax(
         ys
     )
 
 
-    pitch_x=float(
-        xs[bounce_index]
-    )
+    pitch={
+
+        "x":float(xs[bounce]),
+
+        "y":float(ys[bounce])
+
+    }
 
 
-    pitch_y=float(
-        ys[bounce_index]
-    )
-
-
-
-    # Impact after bounce
 
     impact_index=min(
-        bounce_index+4,
+        bounce+4,
         len(xs)-1
     )
 
 
-    impact_x=float(
-        xs[impact_index]
-    )
+    impact={
+
+        "x":float(xs[impact_index]),
+
+        "y":float(ys[impact_index])
+
+    }
 
 
-    impact_y=float(
-        ys[impact_index]
-    )
 
-
-
-    # Trajectory fitting
 
     try:
 
@@ -365,9 +368,7 @@ def analyse_lbw(points,width,height):
             2
         )
 
-
     except:
-
 
         curve=np.polyfit(
             ys,
@@ -377,10 +378,12 @@ def analyse_lbw(points,width,height):
 
 
 
+
     stump_y=height*0.45
 
 
-    projected_x=float(
+
+    predicted_x=float(
         np.polyval(
             curve,
             stump_y
@@ -389,28 +392,35 @@ def analyse_lbw(points,width,height):
 
 
 
-    # approximate wicket zone
+    projection={
 
-    stump_left=width*0.46
+        "x":predicted_x,
 
-    stump_right=width*0.54
+        "y":stump_y
 
-
-
-    if projected_x < stump_left or projected_x > stump_right:
+    }
 
 
-        decision="NOT OUT"
 
-        wickets="MISSING"
+    left=width*0.46
+
+    right=width*0.54
 
 
-    else:
 
+
+    if left<=predicted_x<=right:
 
         decision="OUT"
 
         wickets="HITTING"
+
+
+    else:
+
+        decision="NOT OUT"
+
+        wickets="MISSING"
 
 
 
@@ -426,31 +436,12 @@ def analyse_lbw(points,width,height):
         "decision":decision,
 
 
-        "pitch":{
+        "pitch":pitch,
 
-            "x":pitch_x,
-            "y":pitch_y
+        "impact_point":impact,
 
-        },
+        "projection":projection
 
-
-        "impact_point":{
-
-            "x":impact_x,
-            "y":impact_y
-
-        },
-
-
-        "projection":{
-
-            "x":projected_x,
-            "y":stump_y
-
-        },
-
-
-        "points":points
 
     }
 
@@ -459,12 +450,11 @@ def analyse_lbw(points,width,height):
 
 
 # =====================================================
-# ROUTES
+# PAGES
 # =====================================================
 
-
 @app.route("/")
-def index():
+def home():
 
     return render_template(
         "index.html"
@@ -478,52 +468,55 @@ def index():
     "/analyze",
     methods=["POST"]
 )
+
 def analyze():
 
 
     if "video" not in request.files:
 
-        return jsonify(
-            {
-                "error":"No video"
-            }
-        )
+
+        return jsonify({
+
+            "success":False,
+
+            "error":"No video"
+
+        })
 
 
 
-    video=request.files["video"]
+    file=request.files["video"]
 
 
 
     filename=(
         uuid.uuid4().hex+
         os.path.splitext(
-            secure_filename(video.filename)
+            secure_filename(file.filename)
         )[1]
     )
 
 
 
-    filepath=os.path.join(
+    path=os.path.join(
         UPLOAD_FOLDER,
         filename
     )
 
 
-    video.save(filepath)
+
+    file.save(path)
 
 
 
 
     points=detect_ball(
-        filepath
+        path
     )
 
 
 
-    cap=cv2.VideoCapture(
-        filepath
-    )
+    cap=cv2.VideoCapture(path)
 
 
     width=int(
@@ -544,7 +537,8 @@ def analyze():
 
 
 
-    result=analyse_lbw(
+
+    result=analyse(
         points,
         width,
         height
@@ -552,15 +546,15 @@ def analyze():
 
 
 
-    return jsonify(
 
-        {
+    return jsonify({
 
         "success":True,
 
+
         "video":url_for(
-            "static",
-            filename="uploads/"+filename
+            "uploaded_file",
+            filename=filename
         ),
 
 
@@ -570,10 +564,7 @@ def analyze():
         "analysis":result
 
 
-        }
-
-    )
-
+    })
 
 
 
@@ -582,11 +573,15 @@ if __name__=="__main__":
 
 
     app.run(
+
         host="0.0.0.0",
+
         port=int(
             os.environ.get(
                 "PORT",
                 5000
             )
+
         )
+
     )
