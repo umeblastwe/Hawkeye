@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <title>AI Hawk-Eye LBW Analyzer</title>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: white; }
-        .container { width: 90%; max-width: 1000px; margin: 40px auto; text-align: center; }
-        .card { background: #1e293b; padding: 25px; border-radius: 15px; margin-top: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        input, select { padding: 12px; margin: 10px; border-radius: 8px; border: none; font-size: 14px; }
-        .loading-text { color: #f59e0b; font-size: 18px; display: none; font-weight: bold; margin-top: 10px; }
-        .video-container { position: relative; display: inline-block; width: 85%; max-width: 800px; margin-top: 25px; border-radius: 12px; overflow: hidden; }
-        video { width: 100%; display: block; border-radius: 12px; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        .result { display: none; background: #020617; padding: 20px; border-radius: 15px; margin-top: 20px; }
-        .out { color: #22c55e; font-size: 32px; font-weight: bold; text-shadow: 0 0 10px rgba(34,197,94,0.3); }
-        .notout { color: #ef4444; font-size: 32px; font-weight: bold; text-shadow: 0 0 10px rgba(239,68,68,0.3); }
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; }
+        .container { width: 90%; max-width: 900px; margin: 40px auto; text-align: center; }
+        .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-top: 20px; }
+        input, select { padding: 10px; margin: 10px; border-radius: 6px; border: none; }
+        .loading-text { color: #f59e0b; font-size: 16px; display: none; font-weight: bold; }
+        .video-box { position: relative; display: inline-block; width: 100%; max-width: 750px; margin-top: 20px; }
+        video { width: 100%; border-radius: 10px; display: block; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .result { display: none; background: #020617; padding: 20px; border-radius: 12px; margin-top: 20px; }
+        .out { color: #22c55e; font-size: 28px; font-weight: bold; }
+        .notout { color: #ef4444; font-size: 28px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -23,28 +23,24 @@
     <h1>🏏 AI Hawk-Eye LBW Analyzer</h1>
 
     <div class="card">
-        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Upload Match Video Clip:</label>
         <input type="file" id="videoInput" accept="video/*">
-        <br>
         <select id="hand">
             <option value="Right">Right Hand Batsman</option>
             <option value="Left">Left Hand Batsman</option>
         </select>
-        <div id="loadingStatus" class="loading-text">🔄 Tracking & Generating Path Trajectory...</div>
+        <div id="loadingStatus" class="loading-text">🔄 Tracking Ball Trajectory Vectors...</div>
     </div>
 
     <div class="card result" id="result">
         <h2>Decision</h2>
         <div id="decision"></div>
-        <div style="margin-top: 15px; font-size: 16px; display: flex; justify-content: space-around;">
-            <p id="pitching"></p>
-            <p id="impact"></p>
-            <p id="wicket"></p>
-        </div>
+        <p id="pitching"></p>
+        <p id="impact"></p>
+        <p id="wicket"></p>
     </div>
 
-    <div class="video-container">
-        <video id="video" controls muted></video>
+    <div class="video-box">
+        <video id="video" controls></video>
         <canvas id="canvas"></canvas>
     </div>
 </div>
@@ -64,15 +60,12 @@
         form.append("video", file);
 
         try {
-            let response = await fetch("/analyze", {
-                method: "POST",
-                body: form
-            });
+            let response = await fetch("/analyze", { method: "POST", body: form });
             let data = await response.json();
             loadingStatus.style.display = "none";
 
             if (!data.success || data.ball_points.length === 0) {
-                alert("Ball path tracking conflict. Please make sure ball is visible clearly.");
+                alert("Tracking failed: Ball was not isolated cleanly. Try another video.");
                 return;
             }
 
@@ -90,18 +83,12 @@
             document.getElementById("impact").innerHTML = "<b>Impact:</b> " + result.impact;
             document.getElementById("wicket").innerHTML = "<b>Wickets:</b> " + result.wicket;
 
-            // Handle resizing gracefully
             video.onloadedmetadata = function() {
-                setTimeout(() => drawTrajectory(data.ball_points, video), 100);
-            };
-            
-            window.onresize = function() {
                 drawTrajectory(data.ball_points, video);
             };
-
         } catch (error) {
             loadingStatus.style.display = "none";
-            alert("Error communicating with tracking servers.");
+            alert("Connection error.");
         }
     }
 
@@ -109,18 +96,15 @@
         let canvas = document.getElementById("canvas");
         let ctx = canvas.getContext("2d");
 
-        // Set structural canvas resolution matching native video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        if (!points || points.length === 0) return;
 
-        // Render Professional Tracking Path Line
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = "#22c55e"; 
-        ctx.lineCap = "round";
+        if(points.length < 2) return;
+
+        // Draw smooth tracking line
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#00ffcc"; // Neon Cyan Blue Line
         ctx.lineJoin = "round";
         ctx.beginPath();
 
@@ -133,15 +117,12 @@
         });
         ctx.stroke();
 
-        // Render Tracker Nodes
+        // Draw solid tracked points
         points.forEach(p => {
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = "#ef4444"; // Vivid Hawk-Eye Red Dot
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "#ff3366"; // Hawk eye hot pink track point
             ctx.fill();
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
         });
     }
 </script>
