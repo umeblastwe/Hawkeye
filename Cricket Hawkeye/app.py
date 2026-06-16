@@ -36,8 +36,10 @@ def detect_ball(video_path):
 
     positions = []
 
+    prev_gray = None
+    last_point = None
+
     frame_number = 0
-    previous = None
 
 
     while True:
@@ -51,88 +53,106 @@ def detect_ball(video_path):
         frame_number += 1
 
 
-        hsv = cv2.cvtColor(
+        gray = cv2.cvtColor(
             frame,
-            cv2.COLOR_BGR2HSV
+            cv2.COLOR_BGR2GRAY
         )
 
 
-        # white cricket ball mask
-
-        lower = np.array(
-            [0,0,170]
-        )
-
-        upper = np.array(
-            [180,60,255]
+        blur = cv2.GaussianBlur(
+            gray,
+            (5,5),
+            0
         )
 
 
-        mask = cv2.inRange(
-            hsv,
-            lower,
-            upper
-        )
+        if prev_gray is not None:
 
 
-        mask = cv2.medianBlur(
-            mask,
-            5
-        )
+            diff = cv2.absdiff(
+                prev_gray,
+                blur
+            )
 
 
-        contours,_ = cv2.findContours(
-            mask,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
+            _,thresh=cv2.threshold(
+                diff,
+                25,
+                255,
+                cv2.THRESH_BINARY
+            )
 
 
-        candidate=None
+            contours,_=cv2.findContours(
+                thresh,
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE
+            )
 
 
-        for c in contours:
-
-            area=cv2.contourArea(c)
-
-
-            if area < 5 or area > 250:
-                continue
+            best=None
+            best_score=0
 
 
-            x,y,w,h=cv2.boundingRect(c)
+            for c in contours:
+
+                area=cv2.contourArea(c)
 
 
-            cx=x+w//2
-            cy=y+h//2
-
-
-            if previous:
-
-                distance=np.sqrt(
-                    (cx-previous[0])**2+
-                    (cy-previous[1])**2
-                )
-
-
-                if distance>80:
+                if area < 5 or area > 300:
                     continue
 
 
-            candidate=(cx,cy)
+                x,y,w,h=cv2.boundingRect(c)
 
 
-        if candidate:
+                ratio=w/h if h else 0
 
-            positions.append(
-                {
+
+                if ratio <0.4 or ratio>2.5:
+                    continue
+
+
+                score=area
+
+
+                cx=x+w//2
+                cy=y+h//2
+
+
+                if last_point:
+
+                    dist=np.sqrt(
+                        (cx-last_point[0])**2+
+                        (cy-last_point[1])**2
+                    )
+
+
+                    if dist>100:
+                        continue
+
+
+                if score>best_score:
+
+                    best_score=score
+                    best=(cx,cy)
+
+
+
+            if best:
+
+                positions.append({
+
                     "frame":frame_number,
-                    "x":candidate[0],
-                    "y":candidate[1]
-                }
-            )
+                    "x":best[0],
+                    "y":best[1]
 
-            previous=candidate
+                })
+
+                last_point=best
+
+
+        prev_gray=blur
 
 
 
