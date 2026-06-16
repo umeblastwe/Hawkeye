@@ -1,131 +1,690 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <title>AI Hawk-Eye LBW Analyzer</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; }
-        .container { width: 90%; max-width: 900px; margin: 40px auto; text-align: center; }
-        .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-top: 20px; }
-        input, select { padding: 10px; margin: 10px; border-radius: 6px; border: none; }
-        .loading-text { color: #f59e0b; font-size: 16px; display: none; font-weight: bold; }
-        .video-box { position: relative; display: inline-block; width: 100%; max-width: 750px; margin-top: 20px; }
-        video { width: 100%; border-radius: 10px; display: block; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .result { display: none; background: #020617; padding: 20px; border-radius: 12px; margin-top: 20px; }
-        .out { color: #22c55e; font-size: 28px; font-weight: bold; }
-        .notout { color: #ef4444; font-size: 28px; font-weight: bold; }
-    </style>
+
+<meta charset="UTF-8">
+
+<title>
+AI Hawk-Eye LBW Analyzer
+</title>
+
+
+<style>
+
+body{
+
+    margin:0;
+    background:#0f172a;
+    color:white;
+    font-family:Arial, sans-serif;
+
+}
+
+
+.container{
+
+    width:90%;
+    max-width:1000px;
+    margin:40px auto;
+    text-align:center;
+
+}
+
+
+.card{
+
+    background:#1e293b;
+    padding:20px;
+    border-radius:15px;
+    margin-bottom:20px;
+
+}
+
+
+input,button,select{
+
+    padding:12px;
+    margin:8px;
+    border-radius:8px;
+    border:none;
+
+}
+
+
+button{
+
+    background:#22c55e;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+
+}
+
+
+button:hover{
+
+    background:#16a34a;
+
+}
+
+
+
+.video-container{
+
+    position:relative;
+    width:100%;
+
+}
+
+
+video{
+
+    width:100%;
+    border-radius:15px;
+
+}
+
+
+
+canvas{
+
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+
+}
+
+
+
+.result{
+
+    display:none;
+
+}
+
+
+
+.out{
+
+    color:#22c55e;
+    font-size:35px;
+    font-weight:bold;
+
+}
+
+
+
+.notout{
+
+    color:#ef4444;
+    font-size:35px;
+    font-weight:bold;
+
+}
+
+
+
+.loading{
+
+    display:none;
+    color:#facc15;
+    font-weight:bold;
+
+}
+
+
+</style>
+
 </head>
+
+
 <body>
 
+
+
 <div class="container">
-    <h1>🏏 AI Hawk-Eye LBW Analyzer</h1>
 
-    <div class="card">
-        <input type="file" id="videoInput" accept="video/*">
-        <select id="hand">
-            <option value="Right">Right Hand Batsman</option>
-            <option value="Left">Left Hand Batsman</option>
-        </select>
-        <div id="loadingStatus" class="loading-text">🔄 Tracking Ball Trajectory Vectors...</div>
-    </div>
 
-    <div class="card result" id="result">
-        <h2>Decision</h2>
-        <div id="decision"></div>
-        <p id="pitching"></p>
-        <p id="impact"></p>
-        <p id="wicket"></p>
-    </div>
+<h1>
+🏏 AI Hawk-Eye LBW Analyzer
+</h1>
 
-    <div class="video-box">
-        <video id="video" controls></video>
-        <canvas id="canvas"></canvas>
-    </div>
+
+
+<div class="card">
+
+
+<input 
+type="file"
+id="videoInput"
+accept="video/*">
+
+
+
+<br>
+
+
+<select id="hand">
+
+
+<option>
+Right Hand Batsman
+</option>
+
+
+<option>
+Left Hand Batsman
+</option>
+
+
+</select>
+
+
+
+<br>
+
+
+<button onclick="uploadVideo()">
+
+Analyze LBW
+
+</button>
+
+
+
+<p class="loading" id="loading">
+
+🔄 Detecting Ball Trajectory...
+
+</p>
+
+
+
 </div>
 
+
+
+
+
+<div class="card result" id="result">
+
+
+<h2>
+Decision
+</h2>
+
+
+<div id="decision"></div>
+
+
+<p id="pitching"></p>
+
+<p id="impact"></p>
+
+<p id="wickets"></p>
+
+
+</div>
+
+
+
+
+
+<div class="video-container">
+
+
+<video id="video" controls></video>
+
+
+<canvas id="canvas"></canvas>
+
+
+</div>
+
+
+
+
+</div>
+
+
+
+
+
+
 <script>
-    document.getElementById("videoInput").addEventListener("change", function() {
-        if(this.files.length > 0) {
-            analyzeVideo(this.files[0]);
-        }
-    });
 
-    async function analyzeVideo(file) {
-        let loadingStatus = document.getElementById("loadingStatus");
-        loadingStatus.style.display = "block";
-        
-        let form = new FormData();
-        form.append("video", file);
 
-        try {
-            let response = await fetch("/analyze", { method: "POST", body: form });
-            let data = await response.json();
-            loadingStatus.style.display = "none";
 
-            if (!data.success || data.ball_points.length === 0) {
-                alert("Tracking failed: Ball was not isolated cleanly. Try another video.");
-                return;
-            }
+async function uploadVideo(){
 
-            let video = document.getElementById("video");
-            video.src = data.video;
 
-            let result = data.analysis;
-            document.getElementById("result").style.display = "block";
+let file=document
+.getElementById("videoInput")
+.files[0];
 
-            let decision = document.getElementById("decision");
-            decision.innerHTML = result.decision;
-            decision.className = (result.decision == "OUT") ? "out" : "notout";
 
-            document.getElementById("pitching").innerHTML = "<b>Pitching:</b> " + result.pitching;
-            document.getElementById("impact").innerHTML = "<b>Impact:</b> " + result.impact;
-            document.getElementById("wicket").innerHTML = "<b>Wickets:</b> " + result.wicket;
 
-            video.onloadedmetadata = function() {
-                drawTrajectory(data.ball_points, video);
-            };
-        } catch (error) {
-            loadingStatus.style.display = "none";
-            alert("Connection error.");
-        }
-    }
+if(!file){
 
-    function drawTrajectory(points, video) {
-        let canvas = document.getElementById("canvas");
-        let ctx = canvas.getContext("2d");
+alert(
+"Please upload video"
+);
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+return;
 
-        if(points.length < 2) return;
+}
 
-        // Draw smooth tracking line
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = "#00ffcc"; // Neon Cyan Blue Line
-        ctx.lineJoin = "round";
-        ctx.beginPath();
 
-        points.forEach((p, index) => {
-            if (index === 0) {
-                ctx.moveTo(p.x, p.y);
-            } else {
-                ctx.lineTo(p.x, p.y);
-            }
-        });
-        ctx.stroke();
 
-        // Draw solid tracked points
-        points.forEach(p => {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = "#ff3366"; // Hawk eye hot pink track point
-            ctx.fill();
-        });
-    }
+let loading=document
+.getElementById("loading");
+
+
+loading.style.display="block";
+
+
+
+let form=new FormData();
+
+
+form.append(
+"video",
+file
+);
+
+
+
+try{
+
+
+let response=await fetch(
+"/analyze",
+{
+
+method:"POST",
+
+body:form
+
+}
+
+);
+
+
+
+let data=await response.json();
+
+
+
+loading.style.display="none";
+
+
+
+if(!data.success){
+
+alert(
+"Analysis failed"
+);
+
+return;
+
+}
+
+
+
+showResult(data);
+
+
+
+}
+
+catch(e){
+
+
+loading.style.display="none";
+
+
+alert(
+"Server error"
+);
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+function showResult(data){
+
+
+
+let result=document
+.getElementById("result");
+
+
+result.style.display="block";
+
+
+
+let analysis=data.analysis;
+
+
+
+let decision=document
+.getElementById("decision");
+
+
+
+decision.innerHTML=
+analysis.decision;
+
+
+
+if(
+analysis.decision==="OUT"
+){
+
+decision.className="out";
+
+}
+
+else{
+
+decision.className="notout";
+
+}
+
+
+
+
+document
+.getElementById("pitching")
+.innerHTML=
+"<b>Pitching:</b> "+
+analysis.pitching;
+
+
+
+document
+.getElementById("impact")
+.innerHTML=
+"<b>Impact:</b> "+
+analysis.impact;
+
+
+
+document
+.getElementById("wickets")
+.innerHTML=
+"<b>Wickets:</b> "+
+analysis.wickets;
+
+
+
+
+let video=document
+.getElementById("video");
+
+
+video.src=data.video;
+
+
+
+video.onloadedmetadata=function(){
+
+
+draw(
+data,
+video
+);
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+function draw(data,video){
+
+
+
+let canvas=document
+.getElementById("canvas");
+
+
+let ctx=canvas.getContext("2d");
+
+
+
+canvas.width=
+video.videoWidth;
+
+
+canvas.height=
+video.videoHeight;
+
+
+
+ctx.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+
+
+
+
+let points=data.ball_points;
+
+
+
+if(points.length<2)
+return;
+
+
+
+// Ball trajectory
+
+
+ctx.lineWidth=5;
+
+ctx.strokeStyle="#00ffcc";
+
+
+ctx.beginPath();
+
+
+
+points.forEach(
+(p,i)=>{
+
+
+if(i===0){
+
+ctx.moveTo(
+p.x,
+p.y
+);
+
+
+}
+
+else{
+
+
+ctx.lineTo(
+p.x,
+p.y
+);
+
+
+}
+
+
+
+}
+);
+
+
+
+ctx.stroke();
+
+
+
+
+
+// Ball points
+
+
+points.forEach(
+p=>{
+
+
+ctx.beginPath();
+
+
+ctx.arc(
+p.x,
+p.y,
+5,
+0,
+Math.PI*2
+);
+
+
+
+ctx.fillStyle="#ff3366";
+
+
+ctx.fill();
+
+
+
+}
+
+);
+
+
+
+
+
+// Draw pitch point
+
+
+if(data.analysis.pitch){
+
+
+drawCircle(
+ctx,
+data.analysis.pitch.x,
+data.analysis.pitch.y,
+"yellow"
+);
+
+
+}
+
+
+
+
+
+// Draw impact point
+
+
+if(data.analysis.impact_point){
+
+
+drawCircle(
+ctx,
+data.analysis.impact_point.x,
+data.analysis.impact_point.y,
+"orange"
+);
+
+
+}
+
+
+
+
+// Draw predicted wicket point
+
+
+if(data.analysis.projection){
+
+
+drawCircle(
+ctx,
+data.analysis.projection.x,
+data.analysis.projection.y,
+"lime"
+);
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+function drawCircle(ctx,x,y,color){
+
+
+ctx.beginPath();
+
+
+ctx.arc(
+x,
+y,
+10,
+0,
+Math.PI*2
+);
+
+
+
+ctx.strokeStyle=color;
+
+ctx.lineWidth=4;
+
+
+ctx.stroke();
+
+
+
+}
+
+
+
+
 </script>
 
+
+
 </body>
+
 </html>
