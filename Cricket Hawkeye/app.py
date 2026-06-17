@@ -28,9 +28,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB buffer safety
 
-# CUSTOM CRICKET MODEL CONFIGURATION
-# Make sure "best.pt" weights file is placed in your "Cricket Hawkeye" folder
-model = YOLO("best.pt")
+# STANDARD MODEL CONFIGURATION
+# Ab yeh internet se 'yolov8n.pt' khud download karega, extra file ki zaroorat nahi!
+model = YOLO("yolov8n.pt")
 
 
 # ==========================================
@@ -86,8 +86,8 @@ def detect_ball_professional(video_path):
             for box in results[0].boxes:
                 class_id = int(box.cls[0])
 
-                # Dynamic custom class indexing (0 = Ball in custom weights)
-                if class_id == 0:  
+                # Standard model mein class 32 = Sports Ball (cricket ball ke liye)
+                if class_id == 32:  
                     xyxy = box.xyxy[0].cpu().numpy()
                     cx = int((xyxy[0] + xyxy[2]) / 2)
                     cy = int((xyxy[1] + xyxy[3]) / 2)
