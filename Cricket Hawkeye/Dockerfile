@@ -22,4 +22,4 @@ RUN mkdir -p static/uploads
 ENV PORT=10000
 EXPOSE 10000
 
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1
+CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 600 --workers 1
