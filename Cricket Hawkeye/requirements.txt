@@ -1,6 +1,6 @@
-Flask==3.0.2
-opencv-python-headless==4.9.0.80
-ultralytics==8.1.0
-numpy==1.26.4
-werkzeug==3.0.1
-gunicorn==21.2.0
+torch
+ultralytics
+opencv-python-headless
+flask
+gunicorn
+numpy
