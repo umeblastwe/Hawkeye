@@ -3,14 +3,10 @@ import uuid
 import cv2
 import numpy as np
 import torch
+import gc  # Garbage collector module memory clean karne ke liye
 
 # =========================================================================
-# FIX: PyTorch 2.6+ changed torch.load default to weights_only=True, which
-# blocks unpickling YOLO model classes. The env var approach does NOT work
-# because TORCH_LOAD_WEIGHTS_ONLY is not a real PyTorch setting.
-# The reliable fix is to monkey-patch torch.load itself, BEFORE importing
-# ultralytics/YOLO, so every internal torch.load call inside ultralytics
-# uses weights_only=False automatically.
+# MONKEY PATCH: PyTorch v2.6+ Weights-Only Loading Fix
 # =========================================================================
 _original_torch_load = torch.load
 
@@ -20,9 +16,8 @@ def _patched_torch_load(*args, **kwargs):
 
 torch.load = _patched_torch_load
 
-# Now safe to import ultralytics — it will use the patched torch.load
+# Now safe to import ultralytics
 from ultralytics import YOLO
-
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 
@@ -31,9 +26,9 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # Cap at 100MB for server safety
 
-# Load model AFTER the patch is applied
+# Load nano model (Lightest weights for cloud instances)
 model = YOLO("yolov8n.pt")
 
 
@@ -57,7 +52,7 @@ class SimpleKalman:
 
 
 # ==========================================
-# ADVANCED TRACKING WITH PERSISTENCE
+# PERFORMANCE OPTIMIZED TRACKING ENGINE
 # ==========================================
 def detect_ball_professional(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -66,6 +61,7 @@ def detect_ball_professional(video_path):
 
     raw_positions = []
     frame_number = 0
+    FRAME_SKIP = 2  # PERFORMANCE BOOST: Har dusra frame skip karein (Load drops by 50%)
 
     while True:
         ret, frame = cap.read()
@@ -73,6 +69,15 @@ def detect_ball_professional(video_path):
             break
 
         frame_number += 1
+
+        # Skip frames to strictly avoid Render Worker Timeout
+        if frame_number % FRAME_SKIP != 0:
+            continue
+
+        # RAM PROTECTION: Processing se pehle frame size chota karein
+        h, w = frame.shape[:2]
+        if w > 640:
+            frame = cv2.resize(frame, (640, int(h * (640 / w))))
 
         results = model.track(frame, persist=True, conf=0.10, verbose=False)
 
@@ -85,8 +90,20 @@ def detect_ball_professional(video_path):
                     cx = int((xyxy[0] + xyxy[2]) / 2)
                     cy = int((xyxy[1] + xyxy[3]) / 2)
 
-                    raw_positions.append({"frame": frame_number, "x": cx, "y": cy})
+                    # Scale back to original frame dimensions
+                    scale_x = w / frame.shape[1]
+                    scale_y = h / frame.shape[0]
+
+                    raw_positions.append({
+                        "frame": frame_number, 
+                        "x": int(cx * scale_x), 
+                        "y": int(cy * scale_y)
+                    })
                     break
+
+        # Explicitly release references and trigger system cleanup
+        del results
+        gc.collect()
 
     cap.release()
 
@@ -114,7 +131,7 @@ def detect_ball_professional(video_path):
 # PROFESSIONAL HAWK-EYE QUADRATIC PREDICTION
 # ==========================================
 def calculate_quadratic_path(points, width, height):
-    if len(points) < 5:
+    if len(points) < 4:  # Threshold adjusted for frame skipping normalization
         return {
             "pitching": "UNKNOWN", "impact": "UNKNOWN", "wicket": "UNKNOWN", "decision": "NOT OUT"
         }
@@ -132,7 +149,7 @@ def calculate_quadratic_path(points, width, height):
     pitch_x = float(xs[bounce_index])
     pitch_y = float(ys[bounce_index])
 
-    impact_index = min(bounce_index + 2, len(xs) - 1)
+    impact_index = min(bounce_index + 1, len(xs) - 1)
     impact_x = float(xs[impact_index])
     impact_y = float(ys[impact_index])
 
@@ -145,7 +162,6 @@ def calculate_quadratic_path(points, width, height):
     stump_right = width * 0.535
     uc_margin = width * 0.015
 
-    # ── Umpire's Call zone added (edge of stump line) ──
     if stump_left + uc_margin <= projected_x <= stump_right - uc_margin:
         decision = "OUT"
         wicket = "HITTING"
