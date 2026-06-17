@@ -2,9 +2,10 @@ services:
   - type: web
     name: hawkeye-lbw
     env: docker
-    dockerfilePath: ./Dockerfile
-    plan: free # Agar free use karna hai, paid ke liye 'standard' rehne dein
-    region: oregon # Render ka standard stable region
+    context: ./Cricket Hawkeye
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
     disk:
       name: hawkeye-uploads-storage
       mountPath: /app/static/uploads
