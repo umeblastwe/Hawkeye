@@ -1,23 +1,28 @@
 import os
+
+# =========================================================================
+# CRITICAL SYSTEM HACK: Disable PyTorch 2.6+ Weights-Only Loading Globally
+# =========================================================================
+# Yeh line baqi tamam imports aur YOLO load hone se PEHLE aani chahiye 
+# taake framework framework level unpickling par strict restrictions na lagaye.
+os.environ["TORCH_LOAD_WEIGHTS_ONLY"] = "FALSE"
+
 import cv2
 import uuid
 import numpy as np
-import torch  # PyTorch import kiya framework level security handle karne ke liye
+import torch
 
-# =========================================================================
-# CRITICAL SECURITY FIX: PyTorch 2.6+ Safe Globals Configuration
-# =========================================================================
+# Deep model architecture modules ko safe globals mein force register karna
 try:
-    # PyTorch ko batayein ke Ultralytics ki modules trusted aur safe hain
     import ultralytics
     torch.serialization.add_safe_globals([
-        ultralytics.nn.tasks.DetectionModel
+        ultralytics.nn.tasks.DetectionModel,
+        torch.nn.modules.container.Sequential
     ])
 except Exception as e:
-    # Fallback configuration agar strict structural binding error aaye
-    os.environ["TORCH_LOAD_WEIGHTS_ONLY"] = "FALSE"
+    pass
 
-# Baqi saare imports ab safely execute honge
+# Remaining production imports
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 from ultralytics import YOLO
@@ -28,7 +33,7 @@ UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Load YOLO Model safely
+# Ab yeh line bina kisi security crash ke model download aur load kar legi
 model = YOLO("yolov8n.pt") 
 
 # ==========================================
@@ -36,11 +41,11 @@ model = YOLO("yolov8n.pt")
 # ==========================================
 class SimpleKalman:
     def __init__(self):
-        self.q = 0.05  # Process noise covariance
-        self.r = 1.0   # Measurement noise covariance
-        self.x = 0.0   # Estimated value
-        self.p = 1.0   # Estimation error covariance
-        self.k = 0.0   # Kalman gain
+        self.q = 0.05  
+        self.r = 1.0   
+        self.x = 0.0   
+        self.p = 1.0   
+        self.k = 0.0   
 
     def update(self, measurement):
         self.p = self.p + self.q
@@ -67,15 +72,13 @@ def detect_ball_professional(video_path):
 
         frame_number += 1
         
-        # ByteTrack inference block
         results = model.track(frame, persist=True, conf=0.10, verbose=False)
         
         if results and results[0].boxes:
             for box in results[0].boxes:
                 class_id = int(box.cls[0])
                 
-                # Class 32 (Sports Ball)
-                if class_id == 32:
+                if class_id == 32:  # Sports Ball
                     xyxy = box.xyxy[0].cpu().numpy()
                     cx = int((xyxy[0] + xyxy[2]) / 2)
                     cy = int((xyxy[1] + xyxy[3]) / 2)
@@ -116,11 +119,10 @@ def calculate_quadratic_path(points, width, height):
     xs = np.array([p["x"] for p in points])
     ys = np.array([p["y"] for p in points])
 
-    # Dynamic bounce inversion tracking
     dy = np.diff(ys)
     bounce_index = np.argmax(ys) 
     for i in range(1, len(dy)):
-        if dy[i-1] > 0 and dy[i] < 0:
+        if dy[i-1] > 0 and dy[i] < 0: 
             bounce_index = i
             break
 
@@ -131,7 +133,6 @@ def calculate_quadratic_path(points, width, height):
     impact_x = float(xs[impact_index])
     impact_y = float(ys[impact_index])
 
-    # Real Parabolic Fit ($y = ax^2 + bx + c$)
     coeff = np.polyfit(ys, xs, 2)
     
     stump_y = height * 0.60 
