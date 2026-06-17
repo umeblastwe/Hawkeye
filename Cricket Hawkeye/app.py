@@ -1,51 +1,52 @@
 import os
-
-# =========================================================================
-# CRITICAL SYSTEM HACK: Disable PyTorch 2.6+ Weights-Only Loading Globally
-# =========================================================================
-# Yeh line baqi tamam imports aur YOLO load hone se PEHLE aani chahiye 
-# taake framework framework level unpickling par strict restrictions na lagaye.
-os.environ["TORCH_LOAD_WEIGHTS_ONLY"] = "FALSE"
-
-import cv2
 import uuid
+import cv2
 import numpy as np
 import torch
 
-# Deep model architecture modules ko safe globals mein force register karna
-try:
-    import ultralytics
-    torch.serialization.add_safe_globals([
-        ultralytics.nn.tasks.DetectionModel,
-        torch.nn.modules.container.Sequential
-    ])
-except Exception as e:
-    pass
+# =========================================================================
+# FIX: PyTorch 2.6+ changed torch.load default to weights_only=True, which
+# blocks unpickling YOLO model classes. The env var approach does NOT work
+# because TORCH_LOAD_WEIGHTS_ONLY is not a real PyTorch setting.
+# The reliable fix is to monkey-patch torch.load itself, BEFORE importing
+# ultralytics/YOLO, so every internal torch.load call inside ultralytics
+# uses weights_only=False automatically.
+# =========================================================================
+_original_torch_load = torch.load
 
-# Remaining production imports
+def _patched_torch_load(*args, **kwargs):
+    kwargs['weights_only'] = False
+    return _original_torch_load(*args, **kwargs)
+
+torch.load = _patched_torch_load
+
+# Now safe to import ultralytics — it will use the patched torch.load
+from ultralytics import YOLO
+
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
-from ultralytics import YOLO
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
-# Ab yeh line bina kisi security crash ke model download aur load kar legi
-model = YOLO("yolov8n.pt") 
+# Load model AFTER the patch is applied
+model = YOLO("yolov8n.pt")
+
 
 # ==========================================
 # LIGHTWEIGHT KALMAN FILTER FOR SMOOTHING
 # ==========================================
 class SimpleKalman:
     def __init__(self):
-        self.q = 0.05  
-        self.r = 1.0   
-        self.x = 0.0   
-        self.p = 1.0   
-        self.k = 0.0   
+        self.q = 0.05
+        self.r = 1.0
+        self.x = 0.0
+        self.p = 1.0
+        self.k = 0.0
 
     def update(self, measurement):
         self.p = self.p + self.q
@@ -53,6 +54,7 @@ class SimpleKalman:
         self.x = self.x + self.k * (measurement - self.x)
         self.p = (1 - self.k) * self.p
         return int(self.x)
+
 
 # ==========================================
 # ADVANCED TRACKING WITH PERSISTENCE
@@ -71,20 +73,20 @@ def detect_ball_professional(video_path):
             break
 
         frame_number += 1
-        
+
         results = model.track(frame, persist=True, conf=0.10, verbose=False)
-        
+
         if results and results[0].boxes:
             for box in results[0].boxes:
                 class_id = int(box.cls[0])
-                
+
                 if class_id == 32:  # Sports Ball
                     xyxy = box.xyxy[0].cpu().numpy()
                     cx = int((xyxy[0] + xyxy[2]) / 2)
                     cy = int((xyxy[1] + xyxy[3]) / 2)
-                    
+
                     raw_positions.append({"frame": frame_number, "x": cx, "y": cy})
-                    break 
+                    break
 
     cap.release()
 
@@ -93,7 +95,7 @@ def detect_ball_professional(video_path):
 
     kf_x = SimpleKalman()
     kf_y = SimpleKalman()
-    
+
     kf_x.x = raw_positions[0]["x"]
     kf_y.x = raw_positions[0]["y"]
 
@@ -106,6 +108,7 @@ def detect_ball_professional(video_path):
         })
 
     return smoothed_positions
+
 
 # ==========================================
 # PROFESSIONAL HAWK-EYE QUADRATIC PREDICTION
@@ -120,9 +123,9 @@ def calculate_quadratic_path(points, width, height):
     ys = np.array([p["y"] for p in points])
 
     dy = np.diff(ys)
-    bounce_index = np.argmax(ys) 
+    bounce_index = np.argmax(ys)
     for i in range(1, len(dy)):
-        if dy[i-1] > 0 and dy[i] < 0: 
+        if dy[i-1] > 0 and dy[i] < 0:
             bounce_index = i
             break
 
@@ -134,16 +137,22 @@ def calculate_quadratic_path(points, width, height):
     impact_y = float(ys[impact_index])
 
     coeff = np.polyfit(ys, xs, 2)
-    
-    stump_y = height * 0.60 
+
+    stump_y = height * 0.60
     projected_x = float(np.polyval(coeff, stump_y))
-    
+
     stump_left = width * 0.465
     stump_right = width * 0.535
+    uc_margin = width * 0.015
 
-    if stump_left <= projected_x <= stump_right:
+    # ── Umpire's Call zone added (edge of stump line) ──
+    if stump_left + uc_margin <= projected_x <= stump_right - uc_margin:
         decision = "OUT"
         wicket = "HITTING"
+    elif (stump_left - uc_margin <= projected_x < stump_left + uc_margin) or \
+         (stump_right - uc_margin < projected_x <= stump_right + uc_margin):
+        decision = "UMPIRE'S CALL"
+        wicket = "UMPIRE'S CALL"
     else:
         decision = "NOT OUT"
         wicket = "MISSING"
@@ -155,9 +164,11 @@ def calculate_quadratic_path(points, width, height):
         "projection": {"x": projected_x, "y": stump_y}
     }
 
+
 @app.route("/")
 def home():
     return render_template("index.html")
+
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
@@ -185,5 +196,7 @@ def analyze():
         "analysis": result
     })
 
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
