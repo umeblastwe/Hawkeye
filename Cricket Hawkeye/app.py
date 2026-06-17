@@ -3,7 +3,7 @@ import uuid
 import cv2
 import numpy as np
 import torch
-import gc  # Garbage collector module memory clean karne ke liye
+import gc  # Strict garbage collection module memory release ke liye
 
 # =========================================================================
 # MONKEY PATCH: PyTorch v2.6+ Weights-Only Loading Fix
@@ -16,7 +16,7 @@ def _patched_torch_load(*args, **kwargs):
 
 torch.load = _patched_torch_load
 
-# Now safe to import ultralytics
+# Safely imports after patch mapping
 from ultralytics import YOLO
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
@@ -26,10 +26,11 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # Cap at 100MB for server safety
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB buffer safety
 
-# Load nano model (Lightest weights for cloud instances)
-model = YOLO("yolov8n.pt")
+# CUSTOM CRICKET MODEL CONFIGURATION
+# Make sure "best.pt" weights file is placed in your "Cricket Hawkeye" folder
+model = YOLO("best.pt")
 
 
 # ==========================================
@@ -52,7 +53,7 @@ class SimpleKalman:
 
 
 # ==========================================
-# PERFORMANCE OPTIMIZED TRACKING ENGINE
+# ADVANCED TRACKING WITH PERSISTENCE
 # ==========================================
 def detect_ball_professional(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -61,7 +62,7 @@ def detect_ball_professional(video_path):
 
     raw_positions = []
     frame_number = 0
-    FRAME_SKIP = 2  # PERFORMANCE BOOST: Har dusra frame skip karein (Load drops by 50%)
+    FRAME_SKIP = 1  # 1 on 1 sequential frame reading for absolute trajectory capture
 
     while True:
         ret, frame = cap.read()
@@ -70,27 +71,28 @@ def detect_ball_professional(video_path):
 
         frame_number += 1
 
-        # Skip frames to strictly avoid Render Worker Timeout
         if frame_number % FRAME_SKIP != 0:
             continue
 
-        # RAM PROTECTION: Processing se pehle frame size chota karein
+        # RAM PROTECTION LAYER: Core image compression for engine scaling
         h, w = frame.shape[:2]
         if w > 640:
             frame = cv2.resize(frame, (640, int(h * (640 / w))))
 
+        # Active tracking instantiation
         results = model.track(frame, persist=True, conf=0.10, verbose=False)
 
         if results and results[0].boxes:
             for box in results[0].boxes:
                 class_id = int(box.cls[0])
 
-                if class_id == 32:  # Sports Ball
+                # Dynamic custom class indexing (0 = Ball in custom weights)
+                if class_id == 0:  
                     xyxy = box.xyxy[0].cpu().numpy()
                     cx = int((xyxy[0] + xyxy[2]) / 2)
                     cy = int((xyxy[1] + xyxy[3]) / 2)
 
-                    # Scale back to original frame dimensions
+                    # Dynamic aspect-ratio restoration mapping
                     scale_x = w / frame.shape[1]
                     scale_y = h / frame.shape[0]
 
@@ -101,7 +103,7 @@ def detect_ball_professional(video_path):
                     })
                     break
 
-        # Explicitly release references and trigger system cleanup
+        # Instantaneous structural memory cleaning
         del results
         gc.collect()
 
@@ -131,7 +133,7 @@ def detect_ball_professional(video_path):
 # PROFESSIONAL HAWK-EYE QUADRATIC PREDICTION
 # ==========================================
 def calculate_quadratic_path(points, width, height):
-    if len(points) < 4:  # Threshold adjusted for frame skipping normalization
+    if len(points) < 4:  
         return {
             "pitching": "UNKNOWN", "impact": "UNKNOWN", "wicket": "UNKNOWN", "decision": "NOT OUT"
         }
@@ -162,6 +164,7 @@ def calculate_quadratic_path(points, width, height):
     stump_right = width * 0.535
     uc_margin = width * 0.015
 
+    # Evaluation logic with Umpire's Call implementation
     if stump_left + uc_margin <= projected_x <= stump_right - uc_margin:
         decision = "OUT"
         wicket = "HITTING"
