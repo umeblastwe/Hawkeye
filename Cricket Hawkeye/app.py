@@ -3,8 +3,7 @@ import uuid
 import cv2
 import numpy as np
 import torch
-import gc
-import time
+import gc  # Strict garbage collection module memory release ke liye
 
 # =========================================================================
 # MONKEY PATCH: PyTorch v2.6+ Weights-Only Loading Fix
@@ -17,6 +16,7 @@ def _patched_torch_load(*args, **kwargs):
 
 torch.load = _patched_torch_load
 
+# Safely imports after patch mapping
 from ultralytics import YOLO
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
@@ -26,17 +26,11 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB buffer safety
 
-print(">>> Loading YOLO model...")
-_t0 = time.time()
+# STANDARD MODEL CONFIGURATION
+# Ab yeh internet se 'yolov8n.pt' khud download karega, extra file ki zaroorat nahi!
 model = YOLO("yolov8n.pt")
-print(f">>> Model loaded in {time.time() - _t0:.2f}s")
-
-print(">>> Warming up model...")
-_t0 = time.time()
-_ = model.predict(np.zeros((320, 320, 3), dtype=np.uint8), verbose=False, imgsz=320)
-print(f">>> Warm-up done in {time.time() - _t0:.2f}s")
 
 
 # ==========================================
@@ -59,25 +53,16 @@ class SimpleKalman:
 
 
 # ==========================================
-# FAST BALL TRACKING — with detailed timing instrumentation
+# ADVANCED TRACKING WITH PERSISTENCE
 # ==========================================
-def detect_ball_professional(video_path, max_seconds_budget=40):
+def detect_ball_professional(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(">>> ERROR: could not open video file")
         return []
-
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f">>> Video: {total_frames} frames @ {fps:.1f}fps")
 
     raw_positions = []
     frame_number = 0
-    FRAME_SKIP = 2
-    TARGET_WIDTH = 320
-
-    start_time = time.time()
-    inference_times = []
+    FRAME_SKIP = 1  # 1 on 1 sequential frame reading for absolute trajectory capture
 
     while True:
         ret, frame = cap.read()
@@ -89,45 +74,47 @@ def detect_ball_professional(video_path, max_seconds_budget=40):
         if frame_number % FRAME_SKIP != 0:
             continue
 
-        if time.time() - start_time > max_seconds_budget:
-            print(f">>> TIME BUDGET EXCEEDED at frame {frame_number}, stopping early")
-            break
-
+        # RAM PROTECTION LAYER: Core image compression for engine scaling
         h, w = frame.shape[:2]
-        scale = TARGET_WIDTH / w
-        small_frame = cv2.resize(frame, (TARGET_WIDTH, int(h * scale)))
+        if w > 640:
+            frame = cv2.resize(frame, (640, int(h * (640 / w))))
 
-        _t0 = time.time()
-        results = model.predict(small_frame, conf=0.10, imgsz=320, verbose=False)
-        inference_times.append(time.time() - _t0)
+        # Active tracking instantiation
+        results = model.track(frame, persist=True, conf=0.10, verbose=False)
 
-        if results and results[0].boxes and len(results[0].boxes) > 0:
+        if results and results[0].boxes:
             for box in results[0].boxes:
                 class_id = int(box.cls[0])
-                if class_id == 32:
+
+                # Standard model mein class 32 = Sports Ball (cricket ball ke liye)
+                if class_id == 32:  
                     xyxy = box.xyxy[0].cpu().numpy()
-                    cx = (xyxy[0] + xyxy[2]) / 2
-                    cy = (xyxy[1] + xyxy[3]) / 2
-                    orig_x = int(cx / scale)
-                    orig_y = int(cy / scale)
-                    raw_positions.append({"frame": frame_number, "x": orig_x, "y": orig_y})
+                    cx = int((xyxy[0] + xyxy[2]) / 2)
+                    cy = int((xyxy[1] + xyxy[3]) / 2)
+
+                    # Dynamic aspect-ratio restoration mapping
+                    scale_x = w / frame.shape[1]
+                    scale_y = h / frame.shape[0]
+
+                    raw_positions.append({
+                        "frame": frame_number, 
+                        "x": int(cx * scale_x), 
+                        "y": int(cy * scale_y)
+                    })
                     break
 
+        # Instantaneous structural memory cleaning
         del results
+        gc.collect()
 
     cap.release()
-    gc.collect()
-
-    total_time = time.time() - start_time
-    avg_inf = sum(inference_times) / len(inference_times) if inference_times else 0
-    print(f">>> Processed {len(inference_times)} frames in {total_time:.2f}s "
-          f"(avg {avg_inf*1000:.0f}ms/frame), found {len(raw_positions)} ball detections")
 
     if len(raw_positions) < 3:
         return raw_positions
 
     kf_x = SimpleKalman()
     kf_y = SimpleKalman()
+
     kf_x.x = raw_positions[0]["x"]
     kf_y.x = raw_positions[0]["y"]
 
@@ -146,7 +133,7 @@ def detect_ball_professional(video_path, max_seconds_budget=40):
 # PROFESSIONAL HAWK-EYE QUADRATIC PREDICTION
 # ==========================================
 def calculate_quadratic_path(points, width, height):
-    if len(points) < 4:
+    if len(points) < 4:  
         return {
             "pitching": "UNKNOWN", "impact": "UNKNOWN", "wicket": "UNKNOWN", "decision": "NOT OUT"
         }
@@ -177,6 +164,7 @@ def calculate_quadratic_path(points, width, height):
     stump_right = width * 0.535
     uc_margin = width * 0.015
 
+    # Evaluation logic with Umpire's Call implementation
     if stump_left + uc_margin <= projected_x <= stump_right - uc_margin:
         decision = "OUT"
         wicket = "HITTING"
@@ -211,9 +199,6 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(path)
 
-    print(f">>> Received video: {filename}")
-    _t_total = time.time()
-
     points = detect_ball_professional(path)
 
     cap = cv2.VideoCapture(path)
@@ -222,8 +207,6 @@ def analyze():
     cap.release()
 
     result = calculate_quadratic_path(points, width, height)
-
-    print(f">>> Total /analyze time: {time.time() - _t_total:.2f}s")
 
     return jsonify({
         "success": True,
